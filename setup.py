@@ -5,7 +5,7 @@ setup(
     version="1.0.0",
     description="ISDA: Independent Structural-Dimensionality Analysis",
     author="Codebase Refactor",
-    py_modules=["isda", "mop_definitions"],
+    py_modules=["isda"],
     install_requires=[
         "numpy>=1.20",
         "pandas>=1.3",
