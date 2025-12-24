@@ -916,3 +916,152 @@ def explain_ses(out, top_k=8, name=None, show_all=False):
 
 
 
+
+# --------------------------------------------------------------------------------------
+# HIGH-LEVEL API
+# --------------------------------------------------------------------------------------
+
+class ISDAResult:
+    """
+    Encapsulates the complete result of an ISDA analysis.
+    Stores input parameters, diagnostic regimes, execution results (MIS),
+    and validation metrics (SES).
+    """
+    def __init__(self, Y, caution, alpha_min, alpha_max, metrics, regime, alpha_exec, isda_res, ses_results=None, name=None):
+        self.Y = Y
+        self.name = name
+        self.caution = caution
+        self.alpha_min = alpha_min
+        self.alpha_max = alpha_max
+        self.metrics = metrics
+        self.regime = regime
+        self.alpha = alpha_exec # effectively used alpha
+        self.isda_results = isda_res
+        self.ses_results = ses_results
+
+    @property
+    def correlations(self):
+        """Returns the correlation report string from the ISDA execution."""
+        return self.isda_results.get('corr_report')
+
+    @property
+    def mis_sets(self):
+        """Returns the list of found MIS sets."""
+        return self.isda_results.get('mis_sets')
+    
+    @property
+    def best_mis(self):
+        """Returns the top-ranked MIS (Minimal Independent Set) or None."""
+        if self.isda_results.get('mis_ranked'):
+            return self.isda_results['mis_ranked'][0]
+        return None
+        
+    @property
+    def reduction_applied(self):
+        """Boolean: True if dim(MIS) < dim(Y)."""
+        mis = self.best_mis
+        if mis:
+            return len(mis['mis_indices']) < self.Y.shape[1]
+        return False
+
+    def summary(self):
+        """Returns a textual summary of the analysis."""
+        lines = []
+        lines.append("\n" + "=" * 70)
+        title = f"ISDA Analysis Summary: {self.name}" if self.name else "ISDA Analysis Summary"
+        lines.append(title)
+        lines.append("=" * 70)
+        
+        # Ground Truth / Inputs
+        lines.append(f"Input: [N={self.Y.shape[0]}, M={self.Y.shape[1]}]")
+        lines.append(f"Caution: {self.caution}")
+        
+        # Diagnosis
+        lines.append("\n--- 1. Diagnosis ---")
+        lines.append(describe_alpha_regime(self.metrics))
+        lines.append(f"Regime: {self.regime.name}")
+        
+        # Decision
+        lines.append("\n--- 2. Decision ---")
+        if self.reduction_applied:
+            lines.append("Action: Reduction APPLIED")
+        else:
+            lines.append("Action: Full Dimension Kept (No Reduction)")
+        lines.append(f"Alpha Used: {self.alpha:.6g} (Range: [{self.alpha_min:.6g}, {self.alpha_max:.6g}])")
+                             
+        # Results
+        lines.append("\n--- 3. Results ---")
+        mis = self.best_mis
+        if mis:
+             lines.append(f"Best MIS Size: {len(mis['mis_indices'])}")
+             lines.append(f"Best MIS Labels: {mis['mis_labels']}")
+        else:
+             lines.append("No independent set found (or execution failed).")
+             
+        # SES
+        if self.ses_results:
+             lines.append("\n--- 4. Validation (SES) ---")
+             lines.append(explain_ses(self.ses_results, name=self.name))
+             
+        return "\n".join(lines)
+
+    def plot(self):
+        """Returns the matplotlib figure of the ISDA graph."""
+        return plot_custom_isda_graph(
+            self.isda_results,
+            title=f"{self.name or 'ISDA'} — alpha={self.alpha:.3g} — regime={self.regime.name}",
+            show_removed=False
+        )
+
+def analyze(Y, caution=0.5, run_ses=True, name=None):
+    """
+    Executes the full ISDA pipeline on dataset Y.
+    
+    Steps:
+    1. Estimate alpha interval (p=0.01 vs p=0.05).
+    2. Diagnose alpha regime (Separation, Mixed, etc.).
+    3. Select execution alpha based on 'caution'.
+    4. Run ISDA clustering algorithm.
+    5. (Optional) Run SES validation on the best MIS.
+    
+    Args:
+        Y (np.ndarray or pd.DataFrame): Input data (N samples x M features).
+        caution (float): Conservatism level [0, 1]. 0 = Aggressive reduction, 1 = Very conservative.
+        run_ses (bool): If True, calculates Structural Evidence Score for the best MIS.
+        name (str): Optional name for the case, used in reports.
+        
+    Returns:
+        ISDAResult: Object containing all analysis artifacts.
+    """
+    # 1. Regime Diagnosis
+    alpha_min, alpha_max, r_max_real, r_null = estimate_alpha_interval(Y)
+    metrics = diagnose_alpha_regime(alpha_min, alpha_max)
+    regime = AlphaRegime(metrics["regime"])
+    
+    # 2. Decision Logic
+    alpha_exec = select_alpha(alpha_min, alpha_max, caution)
+    
+    # 3. Execution
+    res = isda_significance(Y, alpha=alpha_exec)
+    
+    # 4. Validation (SES)
+    ses_out = None
+    if run_ses and res.get("mis_ranked"):
+        best_ids = res["mis_ranked"][0]["mis_indices"]
+        # If Y is DataFrame, pass values; calculate_ses handles DataFrame but let's be safe
+        Y_val = Y.values if hasattr(Y, "values") else Y
+        # Pass full Y (original) to calculate_ses
+        ses_out = calculate_ses(Y_val, best_ids)
+        
+    return ISDAResult(
+        Y=Y,
+        caution=caution,
+        alpha_min=alpha_min,
+        alpha_max=alpha_max,
+        metrics=metrics,
+        regime=regime,
+        alpha_exec=alpha_exec,
+        isda_res=res,
+        ses_results=ses_out,
+        name=name
+    )
