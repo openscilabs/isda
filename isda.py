@@ -853,7 +853,7 @@ def explain_ses(out, top_k=8, name=None, show_all=False):
     r2_by_target = out.get("r2_real", None) # Corrected key
     mis = out.get("mis_size", None)
 
-    title = name or "SES (calculate_ses)"
+    title = f"Structural Evidence Score for {name}" if name else "Structural Evidence Score"
     _p("\n" + "=" * 72)
     _p(title)
     _p("=" * 72)

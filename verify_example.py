@@ -229,7 +229,7 @@ def run_cases(cases_list, N=200): # Reduced N for speed
         if len(res['rank_groups'][1]) > 3:
             print(f"    ... (+ {len(res['rank_groups'][1])-3} others in rank 1)")
 
-        # 4. Validation (LASTRO)
+        # 4. Validation (SES - Structural Evidence Score)
         if res["mis_ranked"]:
             best_mis = res["mis_ranked"][0]["mis_indices"]
             ses_out = isda.calculate_ses(Y, best_mis)
