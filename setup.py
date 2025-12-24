@@ -7,10 +7,10 @@ setup(
     author="Codebase Refactor",
     py_modules=["isda", "mop_definitions"],
     install_requires=[
-        "numpy",
-        "pandas",
-        "scipy",
-        "networkx",
-        "matplotlib",
+        "numpy>=1.20",
+        "pandas>=1.3",
+        "scipy>=1.7",
+        "networkx>=2.6",
+        "matplotlib>=3.5",
     ],
 )
