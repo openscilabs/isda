@@ -1,0 +1,23 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- **Package Structure**: extracted core logic from notebooks into a reusable `isda` Python package.
+- **Installation**: added `setup.py` to support `pip install .` and remote git installation.
+- **Validation**: created `validation.ipynb` (formerly `example.ipynb`) as a comprehensive test suite including MOP (Multi-Objective Problem) benchmarks.
+- **Colab Support**: added "Open in Colab" badge and improved dependency handling for cloud execution.
+
+### Changed
+- **Terminology**: Renamed the fidelity metric from "LASTRO" to **SES** (Structural Evidence Score) for clarity and academic precision.
+- **API**: `calculate_lastro` is now `calculate_ses`.
+- **Output**: `isda_significance` now returns a dictionary with 'ses_results' where applicable.
+- **Documentation**: Professionalized the introduction and structure of the validation notebook.
+
+### Removed
+- **Legacy Code**: Removed deprecated `explain_lastro` functions and old inline MOP definitions from the core library.
