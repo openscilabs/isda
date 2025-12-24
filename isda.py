@@ -911,62 +911,7 @@ def explain_ses(out, top_k=8, name=None, show_all=False):
     return "\n".join(lines)
 
 
-def evaluate_reduced_model_fidelity(results_dict):
-    """
-    Evaluates reconstruction fidelity for a collection of ISDA results.
 
-    Parameters
-    ----------
-    results_dict : dict
-        A dictionary where values contain:
-        - "Y": Original data (DataFrame or array)
-        - "best_mis": List of selected indices
-        - "truth" (optional): Dictionary with "intrinsic_dim_expected"
-
-    Returns
-    -------
-    pd.DataFrame
-        Summary table of fidelity metrics.
-    """
-    results_summary = []
-    for name, data in results_dict.items():
-        Y = data["Y"]
-        mis_indices = data.get("best_mis", [])
-        truth = data.get("truth", {})
-
-        # Calculate fidelity (F_real)
-        # Re-uses calculate_ses which is already in isda.py
-        if not mis_indices:
-            fidelity = 0.0
-            ses = 0.0
-        else:
-            ses_out = calculate_ses(Y, mis_indices, n_perm=1, return_details=True)
-            fidelity = ses_out["F_real"]
-            ses = ses_out.get("ses", 0.0)
-
-        expected_dim = truth.get("intrinsic_dim_expected", None)
-        mis_size = len(mis_indices)
-
-        entry = {
-            "Case": name,
-            "Selected MIS Size": mis_size,
-            "Reconstruction Fidelity (F_real)": fidelity,
-            "SES (Structural Evidence Score)": ses
-        }
-        if expected_dim is not None:
-            entry["Expected Intrinsic Dim"] = expected_dim
-
-        results_summary.append(entry)
-
-    df_summary = pd.DataFrame(results_summary)
-
-    # Reorder columns if Expected Dim exists
-    cols = ["Case", "Selected MIS Size", "Reconstruction Fidelity (F_real)", "SES (Structural Evidence Score)"]
-    if "Expected Intrinsic Dim" in df_summary.columns:
-        cols.insert(1, "Expected Intrinsic Dim")
-        df_summary = df_summary[cols]
-
-    return df_summary
 
 
 
