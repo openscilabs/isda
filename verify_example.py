@@ -232,8 +232,8 @@ def run_cases(cases_list, N=200): # Reduced N for speed
         # 4. Validation (LASTRO)
         if res["mis_ranked"]:
             best_mis = res["mis_ranked"][0]["mis_indices"]
-            lastro_out = isda.reduction_lastro(Y, best_mis)
-            print(isda.explain_lastro(lastro_out, name=name))
+            ses_out = isda.calculate_ses(Y, best_mis)
+            print(isda.explain_ses(ses_out, name=name))
         
         # 5. Visualisation
         # Don't plot in non-interactive verification script

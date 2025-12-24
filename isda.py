@@ -708,7 +708,7 @@ def isda_significance(Y, alpha=0.05):
 # MOP (Multi-Objective Pruning) - aka "Reduction" Helpers (for validation)
 # -------------------------------------------------------------------------
 
-def reduction_lastro(
+def calculate_ses(
     Y,
     mis,
     *,
@@ -719,7 +719,9 @@ def reduction_lastro(
     return_details=True,
 ):
     """
-    reduction_lastro(Y, mis) -> lastro (0..1) + details
+    calculate_ses(Y, mis) -> ses (0..1) + details
+
+    SES = Structural Evidence Score.
     """
 
     if hasattr(Y, "values") and hasattr(Y, "columns"):
@@ -750,7 +752,7 @@ def reduction_lastro(
 
     T_idx = [j for j in range(M) if j not in S_idx]
     if len(T_idx) == 0:
-        out = {"lastro": 1.0, "F_real": 1.0, "F_null": 0.0, "r2_real": {}, "r2_null": {}}
+        out = {"ses": 1.0, "F_real": 1.0, "F_null": 0.0, "r2_real": {}, "r2_null": {}}
         return out if return_details else 1.0
 
     rng = np.random.default_rng(seed)
@@ -806,16 +808,16 @@ def reduction_lastro(
 
     denom = (1.0 - F_null)
     if denom <= 0:
-        lastro = 0.0 if (F_real <= F_null) else 1.0
+        ses = 0.0 if (F_real <= F_null) else 1.0
     else:
-        lastro = (F_real - F_null) / denom
+        ses = (F_real - F_null) / denom
     if clip:
-        lastro = float(np.clip(lastro, 0.0, 1.0))
+        ses = float(np.clip(ses, 0.0, 1.0))
     else:
-        lastro = float(lastro)
+        ses = float(ses)
 
     out = {
-        "lastro": lastro,
+        "ses": ses,
         "F_real": float(F_real),
         "F_null": float(F_null),
         "mis_size": len(S_idx),
@@ -831,26 +833,27 @@ def reduction_lastro(
             "clip": bool(clip),
         },
     }
-    return out if return_details else out["lastro"]
+    return out if return_details else out["ses"]
 
 
-def explain_lastro(out, top_k=8, name=None, show_all=False):
+def explain_ses(out, top_k=8, name=None, show_all=False):
     """
-    Explains the result of reduction_lastro(out). Returns string report.
+    Explains the result of calculate_ses(out). Returns string report.
+    SES = Structural Evidence Score.
     """
     if out is None or not isinstance(out, dict):
-        return "explain_lastro: 'out' is invalid (expected dict)."
+        return "explain_ses: 'out' is invalid (expected dict)."
 
     lines = []
     def _p(x): lines.append(str(x))
 
-    lastro = out.get("lastro", None)
+    ses = out.get("ses", None)
     F_real = out.get("F_real", None)
     F_null = out.get("F_null", None)
     r2_by_target = out.get("r2_real", None) # Corrected key
     mis = out.get("mis_size", None)
 
-    title = name or "LASTRO (reduction_lastro)"
+    title = name or "SES (calculate_ses)"
     _p("\n" + "=" * 72)
     _p(title)
     _p("=" * 72)
@@ -858,27 +861,27 @@ def explain_lastro(out, top_k=8, name=None, show_all=False):
     if mis is not None:
         _p(f"Surrogate size (mis): {mis}")
 
-    if lastro is None or F_real is None or F_null is None:
-        _p("Output does not contain expected keys ('lastro', 'F_real', 'F_null').")
+    if ses is None or F_real is None or F_null is None:
+        _p("Output does not contain expected keys ('ses', 'F_real', 'F_null').")
         return "\n".join(lines)
 
     gap = F_real - F_null
     denom = max(1e-15, (1.0 - F_null))
-    lastro_recalc = np.clip(gap / denom, 0.0, 1.0)
+    ses_recalc = np.clip(gap / denom, 0.0, 1.0)
 
-    _p(f"lastro = {lastro:.4f}  (recalc = {lastro_recalc:.4f})")
+    _p(f"SES = {ses:.4f}  (recalc = {ses_recalc:.4f})")
     _p(f"F_real = {F_real:.4f}  |  F_null = {F_null:.4f}  |  gap = {gap:.4f}")
-    _p("Operational interpretation:")
-    _p("  - lastro≈1: surrogate reconstructs others very well, far above null.")
-    _p("  - lastro≈0: surrogate does not reconstruct better than null; suspicious reduction.")
+    _p("Operational interpretation (Structural Evidence Score):")
+    _p("  - SES≈1: surrogate reconstructs others very well, far above null.")
+    _p("  - SES≈0: surrogate does not reconstruct better than null; suspicious reduction.")
     _p("  - intermediate values: some reconstruction, but there is relevant loss.")
 
-    if lastro >= 0.9:
-        _p("Short read: strong lastro (reduction tends to be safe for reconstruction).")
-    elif lastro >= 0.7:
-        _p("Short read: moderate lastro (reduction may work, but deserves checking).")
+    if ses >= 0.9:
+        _p("Short read: strong SES (reduction tends to be safe for reconstruction).")
+    elif ses >= 0.7:
+        _p("Short read: moderate SES (reduction may work, but deserves checking).")
     else:
-        _p("Short read: low lastro (high risk of surrogate being too small).")
+        _p("Short read: low SES (high risk of surrogate being too small).")
 
     if isinstance(r2_by_target, dict) and len(r2_by_target) > 0:
         items = list(r2_by_target.items())
@@ -932,12 +935,14 @@ def evaluate_reduced_model_fidelity(results_dict):
         truth = data.get("truth", {})
 
         # Calculate fidelity (F_real)
-        # Re-uses reduction_lastro which is already in isda.py
+        # Re-uses calculate_ses which is already in isda.py
         if not mis_indices:
             fidelity = 0.0
+            ses = 0.0
         else:
-            lastro_out = reduction_lastro(Y, mis_indices, n_perm=1, return_details=True)
-            fidelity = lastro_out["F_real"]
+            ses_out = calculate_ses(Y, mis_indices, n_perm=1, return_details=True)
+            fidelity = ses_out["F_real"]
+            ses = ses_out.get("ses", 0.0)
 
         expected_dim = truth.get("intrinsic_dim_expected", None)
         mis_size = len(mis_indices)
@@ -945,7 +950,8 @@ def evaluate_reduced_model_fidelity(results_dict):
         entry = {
             "Case": name,
             "Selected MIS Size": mis_size,
-            "Reconstruction Fidelity (F_real)": fidelity
+            "Reconstruction Fidelity (F_real)": fidelity,
+            "SES (Structural Evidence Score)": ses
         }
         if expected_dim is not None:
             entry["Expected Intrinsic Dim"] = expected_dim
@@ -955,7 +961,7 @@ def evaluate_reduced_model_fidelity(results_dict):
     df_summary = pd.DataFrame(results_summary)
 
     # Reorder columns if Expected Dim exists
-    cols = ["Case", "Selected MIS Size", "Reconstruction Fidelity (F_real)"]
+    cols = ["Case", "Selected MIS Size", "Reconstruction Fidelity (F_real)", "SES (Structural Evidence Score)"]
     if "Expected Intrinsic Dim" in df_summary.columns:
         cols.insert(1, "Expected Intrinsic Dim")
         df_summary = df_summary[cols]
