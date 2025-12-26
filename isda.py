@@ -589,39 +589,56 @@ def report_significant_correlations(R, z_stat, z_crit, max_pairs=50, label_prefi
 
 def calculate_component_compactness(corr_matrix, components):
     """
-    Calculates the compactness (minimum absolute internal correlation) for each component.
+    Calculates component homogeneity metrics (Compactness and Ratio).
     Returns:
-        min_compactness: The lowest compactness found across all components (worst case).
-        component_metrics: Dictionary mapping component index to its compactness.
+        min_compactness: Lowest internal correlation across all components (worst case).
+        component_metrics: Dict mapping idx -> compactness.
+        homogeneity_stats: Dict with 'min_ratio', 'worst_comp_idx', 'ratios' (dict).
     """
     metrics = {}
+    ratios = {}
     min_compactness = 1.0
+    min_ratio = 1.0
+    worst_comp_idx = -1
     
     for idx, comp in enumerate(components):
         if len(comp) < 2:
-            metrics[idx] = 1.0 # Singletons are perfectly compact
+            metrics[idx] = 1.0 
+            ratios[idx] = 1.0
             continue
             
-        # Extract submatrix for the component
+        # Extract submatrix
         sub_corr = corr_matrix[np.ix_(comp, comp)]
-        # Use abs since ISDA treats sign based on regime
         sub_corr_abs = np.abs(sub_corr)
         
-        # Get off-diagonal elements
         mask = np.ones_like(sub_corr_abs, dtype=bool)
         np.fill_diagonal(mask, False)
         off_diag = sub_corr_abs[mask]
         
         if len(off_diag) > 0:
-            val = float(np.min(off_diag))
+            c_min = float(np.min(off_diag))
+            c_max = float(np.max(off_diag))
+            ratio = c_min / c_max if c_max > 0 else 0.0
         else:
-            val = 1.0
+            c_min, c_max, ratio = 1.0, 1.0, 1.0
             
-        metrics[idx] = val
-        if val < min_compactness:
-            min_compactness = val
+        metrics[idx] = c_min
+        ratios[idx] = ratio
+        
+        if c_min < min_compactness:
+            min_compactness = c_min
             
-    return min_compactness, metrics
+        if ratio < min_ratio:
+            min_ratio = ratio
+            worst_comp_idx = idx
+            
+    homogeneity_stats = {
+        "min_ratio": min_ratio,
+        "worst_comp_idx": worst_comp_idx,
+        "ratios": ratios
+    }
+            
+    return min_compactness, metrics, homogeneity_stats
 
 
 def repair_mis_coverage(corr_matrix, mis_indices, min_coverage=0.7):
@@ -798,7 +815,7 @@ def isda_significance(Y, alpha=0.05, ensure_coverage=True, min_coverage=None):
         "avg_internal_degree": sorted({m["avg_internal_degree"] for m in mis_metrics}),
     }
 
-    min_compactness, component_metrics = calculate_component_compactness(corr, components)
+    min_compactness, component_metrics, homogeneity_stats = calculate_component_compactness(corr, components)
 
     results = {
         "corr": corr,
@@ -816,6 +833,7 @@ def isda_significance(Y, alpha=0.05, ensure_coverage=True, min_coverage=None):
         "unique_metric_values": unique_metric_values,
         "min_component_compactness": min_compactness,
         "component_compactness": component_metrics,
+        "homogeneity_stats": homogeneity_stats,
         "labels": labels,
         "alpha": alpha,
         "N": N,
@@ -1072,6 +1090,12 @@ class ISDAResult:
     def min_compactness(self):
         """Returns the minimum component compactness found (worst internal correlation)."""
         return self.isda_results.get('min_component_compactness', 1.0)
+    
+    @property
+    def homogeneity_ratio(self):
+        """Returns the global homogeneity ratio (worst Min/Max within a component)."""
+        stats = self.isda_results.get('homogeneity_stats', {})
+        return stats.get('min_ratio', 1.0)
 
     @property
     def mis_sets(self):
@@ -1127,9 +1151,18 @@ class ISDAResult:
         else:
              lines.append("No independent set found (or execution failed).")
              
+        # Quality
+        lines.append("\n--- 4. Quality ---")
+        ratio = self.homogeneity_ratio
+        lines.append(f"Homogeneity Ratio: {ratio:.4f}")
+        if ratio < 0.6:
+            lines.append("WARNING: Low homogeneity ratio (< 0.6). Possible over-reduction due to transitive chains or bridges.")
+        else:
+            lines.append("Status: OK (Components are internally homogeneous)")
+
         # SES
         if self.ses_results:
-             lines.append("\n--- 4. Validation (SES) ---")
+             lines.append("\n--- 5. Validation (SES) ---")
              lines.append(explain_ses(self.ses_results, name=self.name))
              
         return "\n".join(lines)
