@@ -1117,6 +1117,31 @@ class ISDAResult:
             return len(mis['mis_indices']) < self.Y.shape[1]
         return False
 
+    @property
+    def diagnosis(self):
+        """Returns a short diagnostic string based on Fidelity and Homogeneity."""
+        f = 0.0
+        if self.ses_results:
+            f = self.ses_results.get('F_real', 0.0)
+        
+        h = self.homogeneity_ratio
+        
+        # Heuristic Decision Tree
+        if f >= 0.9 and h >= 0.8:
+            return "Ideal (Clique)"
+        if f >= 0.9 and h < 0.2:
+             return "Entangled (Mixed)"
+        if f >= 0.9:
+             return "Good (Robust)"
+             
+        if f < 0.8 and h >= 0.6:
+             return "Drift (Chain)"
+             
+        if f < 0.6 and h < 0.6:
+             return "Fragmented (Bridge)"
+             
+        return "Ambiguous/Warn"
+
     def summary(self):
         """Returns a textual summary of the analysis."""
         lines = []
@@ -1154,7 +1179,11 @@ class ISDAResult:
         # Quality
         lines.append("\n--- 4. Quality ---")
         ratio = self.homogeneity_ratio
+        diag = self.diagnosis
+        
         lines.append(f"Homogeneity Ratio: {ratio:.4f}")
+        lines.append(f"Auto-Diagnosis: {diag}")
+        
         if ratio < 0.6:
             lines.append("WARNING: Low homogeneity ratio (< 0.6). Possible over-reduction due to transitive chains or bridges.")
         else:
