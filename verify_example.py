@@ -168,10 +168,13 @@ def make_mop_dtlz2_3d(N=1000, M=3, seed=123):
 def make_mop_wfg_3d(N=1000, M=3, seed=123):
     return _make_mop_case(name=f"WFG (M={M})", N=N, M=M, seed=seed)
 
+
 # 2. Main Execution Loop
 caution = isda.CONSERVATIVE # Set caution level (0 to 1)
 
 def run_cases(cases_list, N=200): # Reduced N for speed
+    summary_data = []
+
     for name, gen in cases_list:
         print("\n\n" + "=" * 70)
         print(name)
@@ -180,82 +183,72 @@ def run_cases(cases_list, N=200): # Reduced N for speed
         Y, truth = gen(N=N)
         print(f"[OK] Data generated: Y.shape = {Y.shape}")
         
-        print("\n--- GROUND TRUTH ---")
-        print(f"name: {truth['name']}")
-        print(f"intrinsic_dim_expected: {truth['intrinsic_dim_expected']}")
-        if truth.get("notes"):
-            print(f"notes: {truth['notes']}")
-
-        # 1. Regime Diagnosis
-        alpha_min, alpha_max, r_max_real, r_max_null = isda.estimate_alpha_interval(Y)
-        metrics = isda.diagnose_alpha_regime(alpha_min, alpha_max)
-        report_regime = isda.describe_alpha_regime(metrics)
-        print(report_regime)
+        # 1. Pipeline execution
+        # Use high-level analyze for convenience as it handles everything
+        result = isda.analyze(Y, caution=caution, run_ses=True, name=name)
         
-        # 2. Decision
-        regime = isda.AlphaRegime(metrics["regime"])
-        reduction_applied = regime in (isda.AlphaRegime.LIMINAL_SEPARATION, isda.AlphaRegime.IMMEDIATE_SEPARATION)
-
-        if reduction_applied:
-            surrogate_final = "MIS_reduced (use highest ranked MIS)"
-            alpha_exec = isda.select_alpha(alpha_min, alpha_max, caution)
-            print(f"[DECISION] Reduction APPLIED. Final surrogate: {surrogate_final}")
-            print(f"[EXEC] alpha_exec (via select_alpha with caution={caution}) = {alpha_exec:.6g}")
-        else:
-            surrogate_final = "MIS_complete (all objectives; no reduction)"
-            alpha_exec = max(alpha_min, alpha_max)
-            print(f"[DECISION] Reduction NOT applied. Final surrogate: {surrogate_final}")
-            print(f"[EXEC] alpha_exec = {alpha_exec:.6g} (for inspection only)")
-
-        # 3. Execution
-        res = isda.isda_significance(Y, alpha=alpha_exec)
+        # Print standard reports
+        print(isda.describe_alpha_regime(result.metrics))
+        print(result.summary())
         
-        # Report correlations
-        # print(res['corr_report']) # Reduce output for verification script
+        # Collect metrics for final table
+        mis_size = len(result.best_mis['mis_indices']) if result.best_mis else 0
+        exp_dim = truth.get('intrinsic_dim_expected', 0)
         
-        print(f"\nCase: {name}")
-        print(f"N (samples) = {res['N']}, M (objectives) = {res['M']}")
-        print(f"Significance level (alpha) = {res['alpha']}")
-        print(f"\nNumber of clusters = {len(res['components'])}")
+        f_real = 0.0
+        ses = 0.0
+        if result.ses_results:
+            f_real = result.ses_results.get('F_real', 0.0)
+            ses = result.ses_results.get('ses', 0.0)
+            
+        # Determine Status
+        # Simple heuristic: Good if Fidelity is high (>0.9) OR if MIS size matches expectation (for cases where we know dim)
+        status = "Bad"
+        if f_real >= 0.9:
+            status = "OK"
+        elif exp_dim > 0 and mis_size == exp_dim: # If dimensionality matches exactly
+            status = "OK"
+        elif result.regime == isda.AlphaRegime.SIGNAL_BELOW_NOISE:
+             status = "Noise"
+             
+        summary_data.append({
+            "Case": name,
+            "Regime": result.regime.name,
+            "Alpha Min": f"{result.alpha_min:.2e}",
+            "Alpha Max": f"{result.alpha_max:.2e}",
+            "Exp Dim": exp_dim,
+            "MIS Size": mis_size,
+            "F_real": f"{f_real:.4f}",
+            "SES": f"{ses:.4f}",
+            "Status": status
+        })
         
-        num_mis = len(res['mis_sets'])
-        print(f"Number of MIS = {num_mis}")
-        
-        print("\nMIS Ranking (top 3 rank 1):")
-        if 1 in res['rank_groups']:
-            for m in res['rank_groups'][1][:3]:
-                print(f"  MIS rank 1: {m['mis_labels']}")
-                print(f"    metrics: size={m['size']}, neigh={m['neighborhood']}, span={m['span']}")
-        if len(res['rank_groups'][1]) > 3:
-            print(f"    ... (+ {len(res['rank_groups'][1])-3} others in rank 1)")
-
-        # 4. Validation (SES - Structural Evidence Score)
-        if res["mis_ranked"]:
-            best_mis = res["mis_ranked"][0]["mis_indices"]
-            ses_out = isda.calculate_ses(Y, best_mis)
-            print(isda.explain_ses(ses_out, name=name))
-        
-        # 5. Visualisation
-        # Don't plot in non-interactive verification script
-        # viz = isda.plot_custom_isda_graph(...) 
+    return pd.DataFrame(summary_data)
 
 battery1 = [
     ("Case 1 - Total independence", make_case1_independence),
     ("Case 2 - Total redundancy", make_case2_total_redundancy),
     ("Case 3 - Blocks (4 x 5)", make_case3_block_structure),
-    # ("Case 4 - Blocks (2 x 10)", make_case4_two_big_blocks), # Skip some to save time
-    # ("Case 5 - Chain", make_case5_chain_structure),
+    ("Case 4 - Blocks (2 x 10)", make_case4_two_big_blocks),
+    ("Case 5 - Chain", make_case5_chain_structure),
     ("Case 6 - Mixed (indep + latents)", make_case6_mixed_structure),
     ("Case 7 - Structural conflict (anti-corr) with groups", make_case7_pure_conflict_groups),
 ]
 
 battery2 = [
-    ("Case 8 - DTLZ2 (M=3, MOP benchmark)", make_mop_dtlz2_3d),
-    ("Case 9 - WFG (M=3, MOP benchmark)", make_mop_wfg_3d),
+    ("Case 8 - DTLZ2 (M=3)", make_mop_dtlz2_3d),
+    ("Case 9 - WFG (M=3)", make_mop_wfg_3d),
 ]
 
 print("\n=== RUNNING STANDARD CORRELATION BATTERY ===")
-run_cases(battery1, N=300)
+df1 = run_cases(battery1, N=300)
 
 print("\n\n=== RUNNING MOP BENCHMARK BATTERY ===")
-run_cases(battery2, N=300)
+df2 = run_cases(battery2, N=300)
+
+print("\n\n" + "="*100)
+print("FINAL SUMMARY REPORT")
+print("="*100)
+final_df = pd.concat([df1, df2], ignore_index=True)
+print(final_df.to_string(index=False))
+

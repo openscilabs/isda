@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Installation**: added `setup.py` to support `pip install .` and remote git installation.
 - **Validation**: created `validation.ipynb` (formerly `example.ipynb`) as a comprehensive test suite including MOP (Multi-Objective Problem) benchmarks.
 - **Colab Support**: added "Open in Colab" badge and improved dependency handling for cloud execution.
+- **Metrics**: Added `Component Compactness` metric to diagnose the internal consistency of identified components.
+- **Robustness**: Added `ensure_coverage` mechanism to `isda_significance`, repairing MIS sets to guarantee statistical coverage using the execution alpha threshold.
 
 ### Changed
 - **Terminology**: Renamed the fidelity metric from "LASTRO" to **SES** (Structural Evidence Score) for clarity and academic precision.

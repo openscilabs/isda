@@ -587,8 +587,110 @@ def report_significant_correlations(R, z_stat, z_crit, max_pairs=50, label_prefi
     return "\n".join(out)
 
 
-def isda_significance(Y, alpha=0.05):
-    """Executes ISDA logic. Returns dictionary of results."""
+def calculate_component_compactness(corr_matrix, components):
+    """
+    Calculates the compactness (minimum absolute internal correlation) for each component.
+    Returns:
+        min_compactness: The lowest compactness found across all components (worst case).
+        component_metrics: Dictionary mapping component index to its compactness.
+    """
+    metrics = {}
+    min_compactness = 1.0
+    
+    for idx, comp in enumerate(components):
+        if len(comp) < 2:
+            metrics[idx] = 1.0 # Singletons are perfectly compact
+            continue
+            
+        # Extract submatrix for the component
+        sub_corr = corr_matrix[np.ix_(comp, comp)]
+        # Use abs since ISDA treats sign based on regime
+        sub_corr_abs = np.abs(sub_corr)
+        
+        # Get off-diagonal elements
+        mask = np.ones_like(sub_corr_abs, dtype=bool)
+        np.fill_diagonal(mask, False)
+        off_diag = sub_corr_abs[mask]
+        
+        if len(off_diag) > 0:
+            val = float(np.min(off_diag))
+        else:
+            val = 1.0
+            
+        metrics[idx] = val
+        if val < min_compactness:
+            min_compactness = val
+            
+    return min_compactness, metrics
+
+
+def repair_mis_coverage(corr_matrix, mis_indices, min_coverage=0.7):
+    """
+    Iteratively repairs the MIS to ensure all variables are covered by at least one
+    member of the MIS with correlation > min_coverage.
+    
+    Args:
+        corr_matrix: MxM correlation matrix (numpy array)
+        mis_indices: List of indices currently in the MIS
+        min_coverage: Minimum absolute correlation required to consider a variable 'covered' (default 0.7)
+        
+    Returns:
+        List of indices in the repaired (expanded) MIS.
+    """
+    M = corr_matrix.shape[0]
+    current_mis = list(mis_indices)
+    
+    # Identify orphans (variables not sufficiently covered by any current MIS member)
+    while True:
+        orphans = []
+        # Calculate max coverage for each variable
+        # We look at |Corr(i, m)| for all m in current_mis
+        if not current_mis:
+            # Should not happen in ISDA context, but handle gracefully
+            orphans = list(range(M))
+        else:
+            mis_cols = corr_matrix[:, current_mis]
+            max_corrs = np.max(np.abs(mis_cols), axis=1) # (M,)
+            
+            # Find those below threshold
+            orphans = np.where(max_corrs < min_coverage)[0]
+            
+        if len(orphans) == 0:
+            break
+            
+        # Select the best candidate to cover orphans
+        # Heuristic: Pick the orphan that is "most central" among the remaining orphans?
+        # Or simplify: pick the first orphan?
+        # Better: Pick the orphan that covers the most other orphans.
+        
+        best_candidate = -1
+        best_cover_count = -1
+        
+        # Optimization: only check nodes within the orphan set as candidates
+        # (Though a non-orphan could arguably cover them too, but non-orphans are already 'represented')
+        subset_corr = np.abs(corr_matrix[np.ix_(orphans, orphans)])
+        
+        # Count how many orphans each orphan covers
+        coverage_counts = np.sum(subset_corr > min_coverage, axis=1)
+        
+        best_idx_local = np.argmax(coverage_counts)
+        best_candidate = orphans[best_idx_local]
+        
+        current_mis.append(best_candidate)
+        
+    return sorted(current_mis)
+
+
+def isda_significance(Y, alpha=0.05, ensure_coverage=True, min_coverage=None):
+    """
+    Executes ISDA logic. Returns dictionary of results.
+    
+    Args:
+        Y: Input data (DataFrame or numpy array)
+        alpha: Significance level for graph construction
+        ensure_coverage: If True, repairs MIS to guarantee min_coverage (default True)
+        min_coverage: Minimum fidelity correlation threshold (default None = derived from alpha)
+    """
     # Accepts DataFrame or array
     if isinstance(Y, pd.DataFrame):
         X = Y.values
@@ -607,6 +709,12 @@ def isda_significance(Y, alpha=0.05):
     sigma_z = 1 / np.sqrt(N - 3)
     z_stat = z / sigma_z
     z_crit = stats.norm.ppf(1 - alpha / 2)
+    
+    # Calculate correlation threshold corresponding to z_crit
+    # z = z_crit * sigma_z
+    # r = tanh(z)
+    z_threshold = z_crit * sigma_z
+    r_crit = np.tanh(z_threshold)
     
     corr_report = report_significant_correlations(corr, z_stat, z_crit, label_prefix="f")
 
@@ -633,12 +741,24 @@ def isda_significance(Y, alpha=0.05):
 
     for i in range(M):
         if not visited[i]:
-            comp = dfs(i)
-            components.append(comp)
+            components.append(dfs(i))
 
     components_labels = [[labels[i] for i in comp] for comp in components]
 
     mis_sets = find_maximal_independent_sets(adjacency)
+    
+    if ensure_coverage:
+        repaired_sets = []
+        # Use r_crit as the coverage threshold to ensure consistency with graph construction
+        coverage_threshold = min_coverage if min_coverage is not None else r_crit
+        
+        for ms in mis_sets:
+            # repair returns sorted list
+            repaired = repair_mis_coverage(corr, ms, min_coverage=coverage_threshold)
+            if repaired not in repaired_sets:
+                repaired_sets.append(repaired)
+        mis_sets = repaired_sets
+
     mis_sets_labels = [[labels[i] for i in mis] for mis in mis_sets]
 
     mis_metrics = compute_mis_metrics(mis_sets, adjacency, labels)
@@ -678,6 +798,8 @@ def isda_significance(Y, alpha=0.05):
         "avg_internal_degree": sorted({m["avg_internal_degree"] for m in mis_metrics}),
     }
 
+    min_compactness, component_metrics = calculate_component_compactness(corr, components)
+
     results = {
         "corr": corr,
         "adjacency": adjacency,
@@ -692,6 +814,8 @@ def isda_significance(Y, alpha=0.05):
         "best_mis_rank1": best_mis_rank1,
         "best_mis_rank2": best_mis_rank2,
         "unique_metric_values": unique_metric_values,
+        "min_component_compactness": min_compactness,
+        "component_compactness": component_metrics,
         "labels": labels,
         "alpha": alpha,
         "N": N,
@@ -945,6 +1069,11 @@ class ISDAResult:
         return self.isda_results.get('corr_report')
 
     @property
+    def min_compactness(self):
+        """Returns the minimum component compactness found (worst internal correlation)."""
+        return self.isda_results.get('min_component_compactness', 1.0)
+
+    @property
     def mis_sets(self):
         """Returns the list of found MIS sets."""
         return self.isda_results.get('mis_sets')
@@ -1042,7 +1171,8 @@ def analyze(Y, caution=0.5, run_ses=True, name=None):
     alpha_exec = select_alpha(alpha_min, alpha_max, caution)
     
     # 3. Execution
-    res = isda_significance(Y, alpha=alpha_exec)
+    # 3. Execution
+    res = isda_significance(Y, alpha=alpha_exec, ensure_coverage=True, min_coverage=None)
     
     # 4. Validation (SES)
     ses_out = None
