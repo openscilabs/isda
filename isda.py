@@ -978,9 +978,9 @@ def explain_ses(out, top_k=8, name=None, show_all=False):
     mis = out.get("mis_size", None)
 
     title = f"Structural Evidence Score for {name}" if name else "Structural Evidence Score"
-    _p("\n" + "=" * 72)
+    _p("\n" + " " * 72)
     _p(title)
-    _p("=" * 72)
+    _p("-" * 72)
 
     if mis is not None:
         _p(f"Surrogate size (mis): {mis}")
@@ -1096,10 +1096,10 @@ class ISDAResult:
     def summary(self):
         """Returns a textual summary of the analysis."""
         lines = []
-        lines.append("\n" + "=" * 70)
+        lines.append("\n" + "" * 70)
         title = f"ISDA Analysis Summary: {self.name}" if self.name else "ISDA Analysis Summary"
         lines.append(title)
-        lines.append("=" * 70)
+        lines.append("-" * 70)
         
         # Ground Truth / Inputs
         lines.append(f"Input: [N={self.Y.shape[0]}, M={self.Y.shape[1]}]")
