@@ -116,7 +116,7 @@ def _extract_mis_nodes_1based(mis_entry, M):
     return out
 
 
-def plot_custom_isda_graph(
+def plot_custom_misda_graph(
     isda_out,
     title=None,
     layout_seed=7,
@@ -706,7 +706,7 @@ def repair_mis_coverage(corr_matrix, mis_indices, min_coverage=0.7):
     return sorted(current_mis)
 
 
-def isda_significance(Y, alpha=0.05, ensure_coverage=True, min_coverage=None):
+def misda_significance(Y, alpha=0.05, ensure_coverage=True, min_coverage=None):
     """
     Executes ISDA logic. Returns dictionary of results.
     
@@ -1206,7 +1206,7 @@ class MISDAResult:
 
     def plot(self):
         """Returns the matplotlib figure of the ISDA graph."""
-        return plot_custom_isda_graph(
+        return plot_custom_misda_graph(
             self.isda_results,
             title=f"{self.name or 'MISDA'} — alpha={self.alpha:.3g} — regime={self.regime.name}",
             show_removed=False
@@ -1242,7 +1242,7 @@ def analyze(Y, caution=0.5, run_ses=True, name=None):
     
     # 3. Execution
     # 3. Execution
-    res = isda_significance(Y, alpha=alpha_exec, ensure_coverage=True, min_coverage=None)
+    res = misda_significance(Y, alpha=alpha_exec, ensure_coverage=True, min_coverage=None)
     
     # 4. Validation (SES)
     ses_out = None

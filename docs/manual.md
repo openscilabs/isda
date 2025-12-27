@@ -11,7 +11,7 @@ Introduction
 
 **MISDA** (Maximal Independent Structural Dimensionality Analysis) is a graph-theoretic framework designed for dimensionality reduction in **Multi-Objective Problems (MOPs)**. It facilitates the optimization process by removing redundant objectives while preserving the problem's core conflict structure.
 
-MISDA identifies the **Maximal Independent Set (MIS)** of objectives within a data-driven dependency network. Unlike projection-based methods like PCA\u2014which transform attributes into abstract components\u2014MISDA analyzes the structural topology of the correlation graph to extract the largest possible subset of *original* features that are mutually independent. By mathematically maximizing this independent set, the algorithm recovers the problem's intrinsic dimensionality while ensuring that no redundant information is retained.
+MISDA identifies the **Maximal Independent Set (MIS)** of objectives within a data-driven dependency network. Unlike projection-based methods like PCA — which transform attributes into abstract components — MISDA analyzes the structural topology of the correlation graph to extract the largest possible subset of *original* features that are mutually independent. By mathematically maximizing this independent set, the algorithm recovers the problem's intrinsic dimensionality while ensuring that no redundant information is retained.
 
 This method was developed as part of research into **Multi-Objective Evolutionary Algorithms (MOEAs)**, where reducing the number of objectives (Many-Objective Optimization) is critical for search efficiency and visualization.
 
@@ -33,10 +33,22 @@ MISDA operates on the theoretical premise that the *essential* dimensionality of
     *   **Neighborhood**: Maximizing the number of covered external variables.
     *   **Span**: Maximizing the total correlation strength with external variables.
 
-**Validation Metrics**
+**Validation & Diagnosis**
 To assess the quality of the reduction, MISDA computes:
-*   **SES (Structural Evidence Score)**: Computes the predictive power ($R^2$) of the reduced set (MIS) against the full set, comparing it to a null model (permutation test). SES $\approx 1.0$ indicates perfect reconstruction; SES $\approx 0.0$ implies the reduction lost critical information.
-*   **Homogeneity Ratio**: Measures the internal consistency of connected components. A low ratio ($< 0.6$) warns of "transitive chains" or "bridges" where A is correlated to B, and B to C, but A is not correlated to C (Concept Drift).
+
+*   **SES (Structural Evidence Score)**: Computes the predictive power ($R^2$) of the reduced set (MIS) against the full set, using a linear model compared to a permutation null model.
+    *   $SES \approx 1.0$: Perfect reconstruction (Lossless).
+    *   $SES \approx 0.0$: No better than noise (High Information Loss).
+
+*   **Homogeneity Ratio**: Measures the internal consistency of connected components by comparing the weakest correlation to the strongest correlation within the component ($min/max$).
+    *   $Ratio < 0.6$ warns of "transitive chains" (A-B-C) where A and C are independent but linked by B.
+
+*   **Auto-Diagnosis**: Automatically categorizes the topology based on the intersection of Fidelity ($F$) and Homogeneity ($H$):
+    *   **Ideal (Clique)** ($F>0.9, H>0.8$): Perfect dense groups. Safe reduction.
+    *   **Good (Robust)** ($F>0.9$): Reliable reduction.
+    *   **Entangled** ($F>0.9, H<0.2$): High fidelity but messy topology (mixed positive/negative correlations).
+    *   **Drift (Chain)** ($F<0.8, H \ge 0.6$): Warning state. Potential loss of transitivity.
+    *   **Fragmented (Bridge)** ($F<0.6, H<0.6$): Failure state. Graph is held together by weak links (bridges).
 
 Usage
 -----
@@ -78,7 +90,7 @@ For advanced users requiring granular control, the component functions are acces
 *   **`estimate_alpha_interval(Y)`**:
     Calculates the lower and upper bounds for the significance level $\alpha$ based on the signal-to-noise ratio of the dataset.
 
-*   **`isda_significance(Y, alpha, ...)`**:
+*   **`misda_significance(Y, alpha, ...)`**:
     The core engine. Runs the graph construction and Bron-Kerbosch algorithm for a *specific* manual $\alpha$ value. Returns the raw dictionary of graph artifacts (adjacency, components, all MIS sets).
 
 *   **`calculate_ses(Y, mis_indices)`**:
