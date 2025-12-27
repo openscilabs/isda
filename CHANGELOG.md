@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Package Structure**: extracted core logic from notebooks into a reusable `misda` Python package.
 - **Installation**: added `setup.py` to support `pip install .` and remote git installation.
-- **Validation**: created `validation.ipynb` (formerly `example.ipynb`) as a comprehensive test suite including MOP (Multi-Objective Problem) benchmarks.
+- **Validation**: created `benchmark.ipynb` (formerly `example.ipynb`) as a comprehensive test suite including MOP (Multi-Objective Problem) benchmarks.
 - **Colab Support**: added "Open in Colab" badge and improved dependency handling for cloud execution.
 - **Metrics**: Added `Component Compactness` metric to diagnose the internal consistency of identified components.
 - **Micro-Metrics**: Added `Homogeneity Ratio` (min/max component correlation) and automatic Quality Warnings to detect over-reduction in transitive chains or bridge structures.
@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **API**: `calculate_lastro` is now `calculate_ses`.
 - **Output**: `isda_significance` now returns a dictionary with 'ses_results' where applicable.
 - **Documentation**: Professionalized the introduction and structure of the validation notebook.
+- **Renaming**: Renamed `validation.ipynb` to `benchmark.ipynb` to better reflect its purpose as a performance benchmark suite.
 
 ### Removed
 - **Legacy Code**: Removed deprecated `explain_lastro` functions and old inline MOP definitions from the core library.
