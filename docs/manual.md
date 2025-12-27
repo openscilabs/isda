@@ -9,17 +9,11 @@ MISDA User Guide
 Introduction
 ------------
 
-**MISDA** (Maximal Independent Structural Dimensionality Analysis) is a graph-theoretic framework designed for dimensionality reduction in **Multi-Objective Problems (MOPs)**. It facilitates the optimization process by removing redundant objectives while preserving the problem's core conflict structure.
+**Maximal Independent Structural Dimensionality Analysis (MISDA)** constitutes a graph-theoretic framework designed for dimensionality reduction in **Multi-Objective Problems (MOPs)**. Its primary objective is to rationalize the optimization search space by eliminating redundant objectives while strictly preserving the underlying conflict structure of the Pareto frontier.
 
-MISDA identifies the **Maximal Independent Set (MIS)** of objectives within a data-driven dependency network. Unlike projection-based methods like PCA — which transform attributes into abstract components — MISDA analyzes the structural topology of the correlation graph to extract the largest possible subset of *original* features that are mutually independent. By mathematically maximizing this independent set, the algorithm recovers the problem's intrinsic dimensionality while ensuring that no redundant information is retained.
+Fundamentally, MISDA operates by identifying the **Maximal Independent Set (MIS)** within an empirically derived objective dependency network. In contrast to projection-based techniques such as Principal Component Analysis (PCA)—which map attributes onto an abstract latent space—MISDA analyzes the topological properties of the correlation graph to isolate the largest subset of *original* decision variables that exhibit mutual statistical independence. Through the maximization of this independent set, the algorithm effectively recovers the intrinsic dimensionality of the problem, ensuring the retention of non-redundant information without semantic loss.
 
-This method was developed as part of research into **Multi-Objective Evolutionary Algorithms (MOEAs)**, where reducing the number of objectives (Many-Objective Optimization) is critical for search efficiency and visualization.
-
-**Essential Bibliography:**
-*   Monaco, F. J. (2025). *Maximal Independent Structural Dimensionality Analysis*.
-*   Deb, K., & Saxena, D. K. (2005). On finding pareto-optimal solutions through dimensionality reduction for certain large-dimensional multi-objective optimization problems. *KanGAL Report*.
-
-MISDA
+MISDA Workflow
 -----
 
 MISDA operates on the theoretical premise that the *essential* dimensionality of an MOP corresponds to the size of the largest set of conflicting (or independent) objectives. The framework proceeds in rigorous formal steps:
@@ -102,6 +96,6 @@ For advanced users requiring granular control, the component functions are acces
 References
 ----------
 
-1.  **Monaco, F. J.** (2025). *MISDA: Maximal Independent Structural Dimensionality Analysis*.
+1. *Souza, C. H., Monaco, F. J., Delbem, A. C. B., Kuruvilla, J. A.* . *Maximal Independent Structural Dimensionality Analysis*, to be submitted, 2026.
 2.  **Bron, C., & Kerbosch, J.** (1973). Algorithm 457: finding all cliques of an undirected graph. *Communications of the ACM*, 16(9), 575-577.
 3.  **Deb, K., & Saxena, D. K.** (2005). On finding pareto-optimal solutions through dimensionality reduction for certain large-dimensional multi-objective optimization problems. *KanGAL Report*, 2005011.

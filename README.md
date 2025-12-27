@@ -62,11 +62,13 @@ For a detailed explanation of the theory, pipeline steps, and advanced usage, se
 
 For performance benchmarks and validation against synthetic MOPs, see the **[Benchmark Suite](benchmark.ipynb)**.
 
-## Citation
+## Contributing
 
-If you use MISDA in your research, please cite:
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contact the authors.
 
-> Monaco, F. J. (2025). *Maximal Independent Structural Dimensionality Analysis*.
+## References
+
+> Souza, C. H., Monaco, F. J., Delbem, A. C. B., Kuruvilla, J. A.. *Maximal Independent Structural Dimensionality Analysis*, to be submitted, 2026.
 
 ## License
 
