@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Monaco F. J. <monaco@usp.br>
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Changelog
 
 All notable changes to the **MISDA** (Maximal Independent Structural Dimensionality Analysis) project will be documented in this file.
