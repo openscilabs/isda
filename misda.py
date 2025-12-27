@@ -1063,9 +1063,9 @@ def explain_ses(out, top_k=8, name=None, show_all=False):
 # HIGH-LEVEL API
 # --------------------------------------------------------------------------------------
 
-class ISDAResult:
+class MISDAResult:
     """
-    Encapsulates the complete result of an ISDA analysis.
+    Encapsulates the complete result of an MISDA analysis.
     Stores input parameters, diagnostic regimes, execution results (MIS),
     and validation metrics (SES).
     """
@@ -1146,7 +1146,7 @@ class ISDAResult:
         """Returns a textual summary of the analysis."""
         lines = []
         lines.append("\n" + "" * 70)
-        title = f"ISDA Analysis Summary: {self.name}" if self.name else "ISDA Analysis Summary"
+        title = f"MISDA Analysis Summary: {self.name}" if self.name else "MISDA Analysis Summary"
         lines.append(title)
         lines.append("-" * 70)
         
@@ -1200,13 +1200,13 @@ class ISDAResult:
         """Returns the matplotlib figure of the ISDA graph."""
         return plot_custom_isda_graph(
             self.isda_results,
-            title=f"{self.name or 'ISDA'} — alpha={self.alpha:.3g} — regime={self.regime.name}",
+            title=f"{self.name or 'MISDA'} — alpha={self.alpha:.3g} — regime={self.regime.name}",
             show_removed=False
         )
 
 def analyze(Y, caution=0.5, run_ses=True, name=None):
     """
-    Executes the full ISDA pipeline on dataset Y.
+    Executes the full MISDA pipeline on dataset Y.
     
     Steps:
     1. Estimate alpha interval (p=0.01 vs p=0.05).
@@ -1222,7 +1222,7 @@ def analyze(Y, caution=0.5, run_ses=True, name=None):
         name (str): Optional name for the case, used in reports.
         
     Returns:
-        ISDAResult: Object containing all analysis artifacts.
+        MISDAResult: Object containing all analysis artifacts.
     """
     # 1. Regime Diagnosis
     alpha_min, alpha_max, r_max_real, r_null = estimate_alpha_interval(Y)
@@ -1245,7 +1245,7 @@ def analyze(Y, caution=0.5, run_ses=True, name=None):
         # Pass full Y (original) to calculate_ses
         ses_out = calculate_ses(Y_val, best_ids)
         
-    return ISDAResult(
+    return MISDAResult(
         Y=Y,
         caution=caution,
         alpha_min=alpha_min,

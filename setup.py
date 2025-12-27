@@ -1,11 +1,11 @@
 from setuptools import setup
 
 setup(
-    name="isda",
+    name="misda",
     version="1.0.0",
-    description="ISDA: Independent Structural-Dimensionality Analysis",
-    author="Codebase Refactor",
-    py_modules=["isda"],
+    description="MISDA: Maximal Independent Structural Dimensionality Analysis",
+    author="OpenSciLabs",
+    py_modules=["misda"],
     install_requires=[
         "numpy>=1.20",
         "pandas>=1.3",

@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import isda
+import misda
 import importlib
 
 # 1. Data Generators
@@ -170,7 +170,7 @@ def make_mop_wfg_3d(N=1000, M=3, seed=123):
 
 
 # 2. Main Execution Loop
-caution = isda.CONSERVATIVE # Set caution level (0 to 1)
+caution = misda.CONSERVATIVE # Set caution level (0 to 1)
 
 def run_cases(cases_list, N=200): # Reduced N for speed
     summary_data = []
@@ -185,10 +185,10 @@ def run_cases(cases_list, N=200): # Reduced N for speed
         
         # 1. Pipeline execution
         # Use high-level analyze for convenience as it handles everything
-        result = isda.analyze(Y, caution=caution, run_ses=True, name=name)
+        result = misda.analyze(Y, caution=caution, run_ses=True, name=name)
         
         # Print standard reports
-        print(isda.describe_alpha_regime(result.metrics))
+        print(misda.describe_alpha_regime(result.metrics))
         print(result.summary())
         
         # Collect metrics for final table
@@ -208,7 +208,7 @@ def run_cases(cases_list, N=200): # Reduced N for speed
             status = "OK"
         elif exp_dim > 0 and mis_size == exp_dim: # If dimensionality matches exactly
             status = "OK"
-        elif result.regime == isda.AlphaRegime.SIGNAL_BELOW_NOISE:
+        elif result.regime == misda.AlphaRegime.SIGNAL_BELOW_NOISE:
              status = "Noise"
              
         summary_data.append({

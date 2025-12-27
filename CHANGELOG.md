@@ -1,14 +1,19 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to the **MISDA** (Maximal Independent Structural Dimensionality Analysis) project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2025-12-26
+
+### Rebranding
+- **Project Name**: Renamed from `ISDA` to **MISDA** (Maximal Independent Structural Dimensionality Analysis).
+- **Package**: `isda` -> `misda`.
+- **Classes**: `ISDAResult` -> `MISDAResult`.
 
 ### Added
-- **Package Structure**: extracted core logic from notebooks into a reusable `isda` Python package.
+- **Package Structure**: extracted core logic from notebooks into a reusable `misda` Python package.
 - **Installation**: added `setup.py` to support `pip install .` and remote git installation.
 - **Validation**: created `validation.ipynb` (formerly `example.ipynb`) as a comprehensive test suite including MOP (Multi-Objective Problem) benchmarks.
 - **Colab Support**: added "Open in Colab" badge and improved dependency handling for cloud execution.
