@@ -1,6 +1,11 @@
 # SPDX-FileCopyrightText: 2025 Monaco F. J. <monaco@usp.br>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+"""
+isda.py - Maximal Independent Structural Dimensionality Analysis
+
+MISDA is a graph-theoretic framework designed for dimensionality reduction in Multi-Objective Problems (MOPs). It identifies the Maximal Independent Set (MIS) of objectives within a data-driven dependency network. Unlike projection-based methods like PCA, which transform attributes into abstract components, MISDA analyzes the structural topology of the correlation graph to extract the largest possible subset of original features that are mutually independent. By mathematically maximizing this independent set, the algorithm recovers the problem's intrinsic dimensionality while ensuring that no redundant information is retained. This Python module implements the core functionality of MISDA. Refere to the documentation for further information.
+"""
 
 import numpy as np
 import pandas as pd

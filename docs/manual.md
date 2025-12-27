@@ -1,0 +1,95 @@
+<!--
+SPDX-FileCopyrightText: 2025 Monaco F. J. <monaco@usp.br>
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
+MISDA User Guide
+================
+
+Introduction
+------------
+
+**MISDA** (Maximal Independent Structural Dimensionality Analysis) is a graph-theoretic framework designed for dimensionality reduction in **Multi-Objective Problems (MOPs)**. It facilitates the optimization process by removing redundant objectives while preserving the problem's core conflict structure.
+
+MISDA identifies the **Maximal Independent Set (MIS)** of objectives within a data-driven dependency network. Unlike projection-based methods like PCA\u2014which transform attributes into abstract components\u2014MISDA analyzes the structural topology of the correlation graph to extract the largest possible subset of *original* features that are mutually independent. By mathematically maximizing this independent set, the algorithm recovers the problem's intrinsic dimensionality while ensuring that no redundant information is retained.
+
+This method was developed as part of research into **Multi-Objective Evolutionary Algorithms (MOEAs)**, where reducing the number of objectives (Many-Objective Optimization) is critical for search efficiency and visualization.
+
+**Essential Bibliography:**
+*   Monaco, F. J. (2025). *Maximal Independent Structural Dimensionality Analysis*.
+*   Deb, K., & Saxena, D. K. (2005). On finding pareto-optimal solutions through dimensionality reduction for certain large-dimensional multi-objective optimization problems. *KanGAL Report*.
+
+MISDA
+-----
+
+MISDA operates on the theoretical premise that the *essential* dimensionality of an MOP corresponds to the size of the largest set of conflicting (or independent) objectives. The framework proceeds in rigorous formal steps:
+
+1.  **Dependency Modeling**: A correlation matrix is computed from the sample data.
+2.  **Significance Testing**: Pairwise correlations are subjected to the Fisher Z-transformation to determine statistical significance at a given $\alpha$ level (e.g., $p < 0.05$).
+3.  **Graph Construction**: An undirected graph $G=(V, E)$ is built where vertices $V$ represent objectives and edges $E$ represent significant dependencies (redundancies).
+4.  **MIS Extraction**: The algorithm solves the **Maximum Independent Set** problem (NP-hard) on $G$ using an optimized **Bron-Kerbosch** algorithm. An independent set represents a group of objectives with no pairwise redundancies. The *Maximal* set (MIS) is the largest such group.
+5.  **Coverage Repair**: The initial MIS is iteratively refined to ensure that every discarded objective is "covered" (strongly correlated) by at least one objective retained in the MIS, guaranteeing representativeness.
+6.  **Metric Selection**: If multiple MIS solutions of the same size exist, MISDA ranks them using secondary topological metrics:
+    *   **Neighborhood**: Maximizing the number of covered external variables.
+    *   **Span**: Maximizing the total correlation strength with external variables.
+
+**Validation Metrics**
+To assess the quality of the reduction, MISDA computes:
+*   **SES (Structural Evidence Score)**: Computes the predictive power ($R^2$) of the reduced set (MIS) against the full set, comparing it to a null model (permutation test). SES $\approx 1.0$ indicates perfect reconstruction; SES $\approx 0.0$ implies the reduction lost critical information.
+*   **Homogeneity Ratio**: Measures the internal consistency of connected components. A low ratio ($< 0.6$) warns of "transitive chains" or "bridges" where A is correlated to B, and B to C, but A is not correlated to C (Concept Drift).
+
+Usage
+-----
+
+The library is designed for ease of use with a single high-level entry point.
+
+### Main Function
+
+The primary function for end-users is `analyze`. It handles the entire pipeline: automatic alpha estimation, regime diagnosis, graph execution, and validation.
+
+```python
+import misda
+
+# Y is a (N, M) numpy array or pandas DataFrame of objective values
+result = misda.analyze(Y, caution=0.5, run_ses=True, name="MyExperiment")
+
+print(result.summary())
+```
+
+*   **`caution`** (float, 0.0 - 1.0): Controls the conservatism of the significance test.
+    *   `0.0`: Aggressive reduction (uses $\alpha_{max}$).
+    *   `1.0`: Conservative (uses $\alpha_{min}$), retaining more dimensions if in doubt.
+*   **`run_ses`** (bool): If `True`, performs the computationally expensive but valuable Structural Evidence Score validation.
+
+### Result Object
+
+The `analyze` function returns a `MISDAResult` object with useful properties:
+
+*   **`result.summary()`**: Returns a formatted string report (Diagnosis, Action, Quality, Validation).
+*   **`result.plot()`**: Returns a matplotlib figure visualizing the dependency graph and the selected MIS independent set (in green).
+*   **`result.best_mis`**: Dictionary containing the indices and labels of the best selected subset.
+*   **`result.diagnosis`**: Auto-diagnosis string (e.g., "Ideal (Clique)", "Drift (Chain)").
+
+Other user functions
+--------------------
+
+For advanced users requiring granular control, the component functions are accessible:
+
+*   **`estimate_alpha_interval(Y)`**:
+    Calculates the lower and upper bounds for the significance level $\alpha$ based on the signal-to-noise ratio of the dataset.
+
+*   **`isda_significance(Y, alpha, ...)`**:
+    The core engine. Runs the graph construction and Bron-Kerbosch algorithm for a *specific* manual $\alpha$ value. Returns the raw dictionary of graph artifacts (adjacency, components, all MIS sets).
+
+*   **`calculate_ses(Y, mis_indices)`**:
+    Runs the validation procedure independently. Useful if you want to test a specific subset of objectives `mis_indices` against the dataset `Y` without running the full graph discovery.
+
+*   **`diagnose_alpha_regime(alpha_min, alpha_max)`**:
+    Returns the statistical regime (e.g., `SIGNAL_BELOW_NOISE` or `IMMEDIATE_SEPARATION`) describing how distinguishable the dependencies are from random noise.
+
+References
+----------
+
+1.  **Monaco, F. J.** (2025). *MISDA: Maximal Independent Structural Dimensionality Analysis*.
+2.  **Bron, C., & Kerbosch, J.** (1973). Algorithm 457: finding all cliques of an undirected graph. *Communications of the ACM*, 16(9), 575-577.
+3.  **Deb, K., & Saxena, D. K.** (2005). On finding pareto-optimal solutions through dimensionality reduction for certain large-dimensional multi-objective optimization problems. *KanGAL Report*, 2005011.

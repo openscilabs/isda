@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2025 Monaco F. J. <monaco@usp.br>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+The MISDA method (Maximal Independent Structural Dimensionality Analysis) was developed in the context of research on Multi-Objective Evolutionary Algorithms (MOEA), jointly by:
+
+* Dr. Monaco F. J. <monaco@usp.br>
+* Dr. Delbem A. C. B. <acbd@icmc.usp.br>
+* Dr. Kuruvilla J. A. <abraham@fmrp.usp.br>
+* Cesar Henrique de Souza <cesar.henrique@usp.br>
+
+The code for this package was written by Monaco F. J., based on a previous implementation by Cesar Henrique de Souza.
