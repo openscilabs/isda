@@ -986,6 +986,63 @@ def calculate_ses(
     return out if return_details else out["ses"]
 
 
+def calculate_ses_nonlinear(
+    Y,
+    mis,
+    *,
+    test_size=0.3,
+    seed=123,
+    n_estimators=100
+):
+    """
+    Calculates Non-Linear SES using Random Forest Regression.
+    Returns the R2 score of reconstructing Y from Y[:, mis].
+    
+    Args:
+        Y: (N, M) matrix
+        mis: list of indices (or dict from result)
+        test_size: fraction for validation (default 0.3)
+        n_estimators: trees for RF
+        
+    Returns:
+        float: R2 score (0..1)
+    """
+    try:
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.model_selection import train_test_split
+    except ImportError:
+        print("Warning: sklearn not found. calculate_ses_nonlinear returning 0.0.")
+        return 0.0
+
+    # Handle input types
+    Y = np.asarray(Y)
+    if isinstance(mis, dict) and 'mis_indices' in mis:
+        indices = mis['mis_indices']
+    else:
+        indices = mis
+        
+    if not len(indices):
+        return 0.0
+        
+    M = Y.shape[1]
+    # Identify target columns (all, or just dependent ones? SES reconstructs ALL usually or remaining?)
+    # Linear SES validates F_real: R2 of Y ~ Y_mis. 
+    # Usually we want to know if Y_mis predicts Y (especially Y_dependent).
+    # Since Y_mis predicts itself perfectly (R2=1), the score is dominated by dependents.
+    # We will predict ALL M columns to match F_real logic (which is avg R2).
+    
+    Y_mis = Y[:, indices]
+    
+    X_train, X_test, Y_train, Y_test = train_test_split(Y_mis, Y, test_size=test_size, random_state=seed)
+    
+    reg = RandomForestRegressor(n_estimators=n_estimators, random_state=seed, n_jobs=-1)
+    reg.fit(X_train, Y_train)
+    
+    score = reg.score(X_test, Y_test)
+    return max(0.0, score)
+
+
+
 def explain_ses(out, top_k=8, name=None, show_all=False):
     """
     Explains the result of calculate_ses(out). Returns string report.
@@ -1265,10 +1322,18 @@ class MISDAResult:
         else:
             lines.append("Status: OK (Components are internally homogeneous)")
 
-        # SES
+        # SES (Linear)
         if self.ses_results:
-             lines.append("\n--- 5. Validation (SES) ---")
+             lines.append("\n--- 5. Validation (SES - Linear) ---")
              lines.append(explain_ses(self.ses_results, name=self.name))
+        
+        # SES (Non-Linear)
+        if self.Y.shape[0] <= 2000: # Limit for RF performance
+             try:
+                 ses_nl = calculate_ses_nonlinear(self.Y, self.best_mis)
+                 lines.append(f"Non-Linear SES (RF): {ses_nl:.4f} (R2 Score)")
+             except Exception:
+                 pass
 
         # Pareto Consistency
         # Only run if N is reasonable to avoid O(N^2) lag on massive datasets
