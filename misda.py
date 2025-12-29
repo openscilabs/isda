@@ -1061,6 +1061,74 @@ def explain_ses(out, top_k=8, name=None, show_all=False):
     return "\n".join(lines)
 
 
+def get_nondominated_mask(Y):
+    """
+    Returns boolean mask of non-dominated solutions (Minimization) for a dataset Y.
+    Complexity: O(N^2)
+    Args:
+        Y (np.ndarray): shape (N, M)
+    Returns:
+        np.array(bool): shape (N,), True if non-dominated.
+    """
+    # Ensure numpy
+    Y = np.asarray(Y)
+    N, M = Y.shape
+    is_efficient = np.ones(N, dtype=bool)
+    for i in range(N):
+        # i is dominated by j if:
+        # all(Y[j] <= Y[i]) AND any(Y[j] < Y[i])
+        better_or_equal = (Y <= Y[i]).all(axis=1)
+        better = (Y < Y[i]).any(axis=1)
+        dominators = better_or_equal & better
+        if dominators.any():
+            is_efficient[i] = False
+    return is_efficient
+
+def evaluate_pareto_consistency(result_obj, df_original=None):
+    """
+    Compares the True Pareto Front (Full M) vs Surrogate Pareto Front (Reduced k).
+    Calculates Precision (Safety) and Recall (Coverage).
+
+    Args:
+        result_obj (MISDAResult): The result object from misda.analyze()
+        df_original (pd.DataFrame or np.ndarray): Original data. If None, tries to use result_obj.Y
+    
+    Returns:
+        (precision, recall): 
+            Precision = P(True Optimum | Surrogate Optimum) -> Safety
+            Recall    = P(Surrogate Optimum | True Optimum) -> Coverage
+    """
+    Y_full = df_original if df_original is not None else result_obj.Y
+    if hasattr(Y_full, "values"):
+        Y_full = Y_full.values
+    Y_full = np.asarray(Y_full)
+
+    mis = result_obj.best_mis
+    if not mis or not mis['mis_indices']:
+        return 0.0, 0.0
+    
+    indices = mis['mis_indices']
+    Y_sub = Y_full[:, indices]
+    
+    # 1. True Front
+    mask_true = get_nondominated_mask(Y_full)
+    
+    # 2. Surrogate Front
+    mask_surr = get_nondominated_mask(Y_sub)
+    
+    # Metrics
+    intersection = (mask_true & mask_surr).sum()
+    
+    # Precision: Of the points the surrogate thinks are optimal, how many are truly optimal?
+    denom_p = mask_surr.sum()
+    precision = intersection / denom_p if denom_p > 0 else 0.0
+    
+    # Recall: Of the true optima, how many did the surrogate keep?
+    denom_r = mask_true.sum()
+    recall = intersection / denom_r if denom_r > 0 else 0.0
+    
+    return precision, recall
+
 
 
 
@@ -1201,7 +1269,22 @@ class MISDAResult:
         if self.ses_results:
              lines.append("\n--- 5. Validation (SES) ---")
              lines.append(explain_ses(self.ses_results, name=self.name))
-             
+
+        # Pareto Consistency
+        # Only run if N is reasonable to avoid O(N^2) lag on massive datasets
+        if self.Y.shape[0] <= 5000:
+             lines.append("\n--- 6. Pareto Consistency ---")
+             try:
+                 prec, rec = evaluate_pareto_consistency(self)
+                 lines.append(f"Precision (Safety):   {prec:.4f}  (Prob. that Surrogate Optimum is True Optimum)")
+                 lines.append(f"Recall    (Coverage): {rec:.4f}  (Prob. that True Optimum is retained)")
+                 if prec < 1.0:
+                     lines.append("WARN: Surrogate introduces false optima (Precision < 1.0).")
+                 if rec < 0.8:
+                     lines.append("WARN: Surrogate misses significant portion of Pareto front (Recall < 0.8).")
+             except Exception:
+                 lines.append("Error calculating Pareto metrics.")
+         
         return "\n".join(lines)
 
     def plot(self):
