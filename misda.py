@@ -1413,3 +1413,114 @@ def analyze(Y, caution=0.5, run_ses=True, name=None):
         ses_results=ses_out,
         name=name
     )
+
+def compile_benchmark_summary(results_dict, sort_by=None):
+    """
+    Standardizes the summary table generation for MISDA benchmarks.
+    Extracts all key metrics including Alpha regimes, Homogeneity, Linear/Non-Linear Fidelity, and Pareto Consistency.
+
+    Args:
+        results_dict (dict): Dictionary mapping Case Name -> MISDAResult object.
+                             Alternatively, can be a dictionary where values are dicts containing 'result_obj'.
+        sort_by (str): Column name to sort by.
+
+    Returns:
+        pd.DataFrame: Comprehensive summary table.
+    """
+    rows = []
+    
+    for case_name, item in results_dict.items():
+        # Handle both direct MISDAResult and wrapper dicts (e.g. from benchmark.ipynb)
+        # item could be MISDAResult or dict
+        res = None
+        truth_dim = None
+
+        if hasattr(item, 'best_mis'):
+            res = item
+        elif isinstance(item, dict) and 'result_obj' in item:
+            res = item['result_obj']
+            truth_dim = item.get('truth', {}).get('intrinsic_dim_expected', None)
+        
+        if res is None:
+            continue
+            
+        # Basic Params
+        # Handle res.Y being dataframe or numpy
+        N, M = res.Y.shape
+        algo_alpha = res.alpha
+        
+        # MIS Info
+        mis_indices = res.best_mis['mis_indices'] if res.best_mis else []
+        dim_red = len(mis_indices)
+        
+        # Fidelity (Linear)
+        fidel_lin = 0.0
+        if res.ses_results:
+             fidel_lin = res.ses_results.get("F_real", 0.0)
+             
+        # Fidelity (Non-Linear)
+        fidel_nl = 0.0
+        try:
+            if N <= 5000: # Per safeguard
+                fidel_nl = calculate_ses_nonlinear(res.Y, mis_indices, n_estimators=50)
+        except:
+             pass
+             
+        # Pareto Consistency
+        prec, rec = 0.0, 0.0
+        try:
+             prec, rec = evaluate_pareto_consistency(res, res.Y)
+        except:
+             pass
+             
+        # Homogeneity
+        homog = res.homogeneity_ratio
+        
+        # Status
+        status = "OK"
+        if fidel_lin < 0.9 and fidel_nl < 0.9:
+            status = "LOW_FIDEL"
+        if prec < 1.0:
+            status = "UNSAFE(Prec)"
+        if truth_dim and dim_red != truth_dim:
+             status += f"|DimMismatch({dim_red}!={truth_dim})"
+        
+        # Alpha Bounds
+        a_min = res.alpha_min if hasattr(res, 'alpha_min') else 0.0
+        a_max = res.alpha_max if hasattr(res, 'alpha_max') else 1.0
+
+        row = {
+            "Case": case_name,
+            "N": N,
+            "M": M,
+            "Dim(Red)": dim_red,
+            "Alpha": f"{algo_alpha:.4f}",
+            "Min": f"{a_min:.2f}",
+            "Max": f"{a_max:.2f}",
+            "Homog": f"{homog:.2f}",
+            "Fidel(Lin)": f"{fidel_lin:.2f}",
+            "Fidel(NL)": f"{fidel_nl:.2f}",
+            "Prec": f"{prec:.2f}",
+            "Rec": f"{rec:.2f}",
+            "Status": status
+        }
+        
+        if truth_dim is not None:
+            row["Exp"] = truth_dim
+            
+        rows.append(row)
+        
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    
+    # Reorder columns if Exp exists
+    cols = ["Case", "N", "M", "Exp", "Dim(Red)", "Alpha", "Min", "Max", "Homog", "Fidel(Lin)", "Fidel(NL)", "Prec", "Rec", "Status"]
+    existing_cols = [c for c in cols if c in df.columns]
+    df = df[existing_cols]
+    
+    if sort_by and sort_by in df.columns:
+        df = df.sort_values(by=sort_by)
+        
+    return df
