@@ -1275,7 +1275,7 @@ class MISDAResult:
              
         return "Ambiguous/Warn"
 
-    def summary(self):
+    def z(self):
         """Returns a textual summary of the analysis."""
         lines = []
         lines.append("\n" + "" * 70)
