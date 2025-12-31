@@ -1491,6 +1491,7 @@ def compile_benchmark_summary(results_dict, sort_by=None):
 
         row = {
             "Case": case_name,
+            "Regime": res.regime.name if res.regime else "N/A",
             "N": N,
             "M": M,
             "Dim(Red)": dim_red,
@@ -1516,7 +1517,7 @@ def compile_benchmark_summary(results_dict, sort_by=None):
     df = pd.DataFrame(rows)
     
     # Reorder columns if Exp exists
-    cols = ["Case", "N", "M", "Exp", "Dim(Red)", "Alpha", "Min", "Max", "Homog", "Fidel(Lin)", "Fidel(NL)", "Prec", "Rec", "Status"]
+    cols = ["Case", "Regime", "N", "M", "Exp", "Dim(Red)", "Alpha", "Min", "Max", "Homog", "Fidel(Lin)", "Fidel(NL)", "Prec", "Rec", "Status"]
     existing_cols = [c for c in cols if c in df.columns]
     df = df[existing_cols]
     
