@@ -41,10 +41,10 @@ ISDA_1_0.ipynb
 3. PROJECT METADATA & SETUP
 ----------------------------
 
-setup.py
-
-    Standard Python setup script for package installation (pip install .).
-    Defines dependencies (numpy, pandas, scipy, networkx, matplotlib, sklearn).
+pyproject.toml
+    Modern build configuration file (PEP 612). Defines project metadata,
+    dependencies (numpy, pandas, scipy, networkx, matplotlib, sklearn),
+    and build system requirements (setuptools). Replaces setup.py.
 
 README.md
 
