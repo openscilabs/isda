@@ -1,9 +1,17 @@
-
 import dtlz_lib
 import misda
 import pandas as pd
 import warnings
 warnings.filterwarnings("ignore")
+from misda import compile_benchmark_summary, MISDAResult, AlphaRegime
+
+"""
+verify_table.py
+
+A utility script to validade the output formatting of `compile_benchmark_summary`.
+It creates mock `MISDAResult` objects with predefined metrics and checks if the
+resulting DataFrame correctly calculates and displays columns like 'Regime', 'Fidel', etc.
+"""
 
 # Copy pasted function for testing
 def evaluate_reduced_model_fidelity(results_dict):

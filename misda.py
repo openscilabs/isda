@@ -22,7 +22,9 @@ CONSERVATIVE = 1
 
 # Utilities
 
+
 def _enforce_min_distance(pos, min_dist=0.28, iters=900, jitter=1e-3, seed=7):
+    """Adjusts 2D layout positions to enforce a minimum distance between nodes."""
     rng = np.random.default_rng(seed)
     nodes = list(pos.keys())
     if not nodes:
@@ -117,29 +119,28 @@ def _extract_mis_nodes_1based(mis_entry, M):
 
 
 def plot_custom_misda_graph(
-    isda_out,
-    title=None,
-    layout_seed=7,
-    show_removed=False,
-    max_removed_edges=350,
-    node_size=420,
-    edge_width=1.15,
-    removed_width=0.9,
-    font_size=9,
-    figsize=(9, 7),
+    results: dict,
+    figsize=(10, 8),
+    min_dist=0.5,
+    title="ISDA Graph",
+    show_removed=True
 ):
-    A = np.asarray(isda_out.get("adjacency", None))
+    """
+    Plots the dependency graph derived from MISDA analysis.
+    Nodes are objectives, edges are significant correlations.
+    """
+    M = results["M"]
+    A = np.asarray(results.get("adjacency", None))
     if A is None:
-        raise ValueError("isda_out['adjacency'] missing.")
+        raise ValueError("results['adjacency'] missing.")
 
-    M = int(A.shape[0])
     nodes = list(range(1, M + 1))
 
     # --- MIS: UNIQUE and explicit source (mis_ranked) ---
-    mis_ranked = isda_out.get("mis_ranked", None)
+    mis_ranked = results.get("mis_ranked", None)
     if not isinstance(mis_ranked, list) or len(mis_ranked) == 0:
         raise ValueError(
-            "isda_out['mis_ranked'] missing/empty. Required to color MIS."
+            "results['mis_ranked'] missing/empty. Required to color MIS."
         )
 
     best_rank = min(m.get("rank", 10**9) for m in mis_ranked)
@@ -177,18 +178,19 @@ def plot_custom_misda_graph(
     # layout + anti-overlap
     pos = nx.spring_layout(
         G,
-        seed=layout_seed,
+        seed=7,
         k=3.0 / np.sqrt(max(M, 1)),  # Slightly larger k for more separation
         iterations=1000,             # More iterations for better convergence
         scale=1.0                    # Explicit scale to fill the plot area
     )
-    pos = _enforce_min_distance(pos, min_dist=0.35, iters=1200, seed=layout_seed)
+    pos = _enforce_min_distance(pos, min_dist=min_dist, iters=1200, seed=7)
 
     fig, ax = plt.subplots(figsize=figsize)
 
     # removed (subsample)
     if show_removed and removed_edges:
         draw_removed = removed_edges
+        max_removed_edges = 350 # Hardcoded for now, was a parameter
         if max_removed_edges is not None and len(draw_removed) > max_removed_edges:
             step = max(1, len(draw_removed) // max_removed_edges)
             draw_removed = draw_removed[::step][:max_removed_edges]
@@ -198,7 +200,7 @@ def plot_custom_misda_graph(
             edgelist=draw_removed,
             style="dashed",
             edge_color="0.65",
-            width=removed_width,
+            width=0.9, # removed_width was a parameter
             alpha=0.45,
             ax=ax,
         )
@@ -225,7 +227,7 @@ def plot_custom_misda_graph(
             G, pos,
             edgelist=other_preserved_edges,
             edge_color="0.10",
-            width=edge_width,
+            width=1.15, # edge_width was a parameter
             alpha=0.85,
             ax=ax,
         )
@@ -236,7 +238,7 @@ def plot_custom_misda_graph(
             G, pos,
             edgelist=green_edges,
             edge_color="C2",  # Green
-            width=edge_width,
+            width=1.15, # edge_width was a parameter
             alpha=0.95,
             ax=ax,
         )
@@ -264,7 +266,7 @@ def plot_custom_misda_graph(
     nx.draw_networkx_nodes(
         G, pos,
         nodelist=nodes,
-        node_size=node_size,
+        node_size=420, # node_size was a parameter
         node_color=node_colors,
         edgecolors=node_border_colors,
         linewidths=1.2,
@@ -276,7 +278,7 @@ def plot_custom_misda_graph(
         x, y = pos[u]
         current_label_color = "white" if (u in mis1_set or u in neigh_set) else "black"
         ax.text(
-            x, y, str(u), ha="center", va="center", fontsize=font_size, color=current_label_color, zorder=10
+            x, y, str(u), ha="center", va="center", fontsize=9, color=current_label_color, zorder=10 # font_size was a parameter
         )
 
     if title is None:
@@ -300,7 +302,16 @@ def plot_custom_misda_graph(
 # Stats / Alpha / Regime
 
 def alpha_from_r(r, n):
-    """Converts a correlation coefficient |r| to a two-tailed p-value (alpha)."""
+    """
+    Converts a correlation coefficient |r| to a two-tailed p-value (alpha).
+
+    Args:
+        r (float): The absolute value of the correlation coefficient.
+        n (int): The number of samples.
+
+    Returns:
+        float: The two-tailed p-value (alpha).
+    """
     r = float(abs(r))
     if r <= 0.0:
         return 1.0
@@ -313,7 +324,18 @@ def alpha_from_r(r, n):
     return float(p)
 
 def max_abs_corr(Y):
-    """Returns the largest |r_ij| among columns of Y and the correlation matrix."""
+    """
+    Calculates the largest absolute correlation coefficient among columns of Y
+    and returns the full correlation matrix.
+
+    Args:
+        Y (np.ndarray or pd.DataFrame): Input data.
+
+    Returns:
+        tuple: A tuple containing:
+            - float: The maximum absolute correlation coefficient.
+            - np.ndarray: The correlation matrix.
+    """
     if hasattr(Y, "values"):
         data = np.asarray(Y.values, dtype=float)
     else:
@@ -326,7 +348,20 @@ def max_abs_corr(Y):
     return r_max, corr
 
 def estimate_null_max_r(Y, B=500, random_state=None):
-    """Estimates, via permutation, the largest |r_ij| expected under the null hypothesis."""
+    """
+    Estimates, via permutation, the largest absolute correlation coefficient
+    expected under the null hypothesis (no correlation).
+
+    Args:
+        Y (np.ndarray or pd.DataFrame): Input data.
+        B (int): Number of permutations to perform.
+        random_state (int or np.random.Generator, optional): Seed for reproducibility.
+
+    Returns:
+        tuple: A tuple containing:
+            - float: The maximum absolute correlation coefficient under the null hypothesis.
+            - np.ndarray: Array of maximum absolute correlations from each permutation.
+    """
     if hasattr(Y, "values"):
         data = np.asarray(Y.values, dtype=float)
     else:
@@ -346,7 +381,23 @@ def estimate_null_max_r(Y, B=500, random_state=None):
     return r_max_null, max_nulls
 
 def estimate_alpha_interval(Y, B=500, random_state=0):
-    """Estimates (alpha_min, alpha_max) from Y data."""
+    """
+    Estimates the (alpha_min, alpha_max) interval from the input data Y.
+    alpha_min corresponds to the most significant observed correlation.
+    alpha_max corresponds to the most significant correlation expected under the null.
+
+    Args:
+        Y (np.ndarray or pd.DataFrame): Input data.
+        B (int): Number of permutations for null estimation.
+        random_state (int, optional): Seed for reproducibility.
+
+    Returns:
+        tuple: A tuple containing:
+            - float: alpha_min (p-value of the strongest real correlation).
+            - float: alpha_max (p-value of the strongest null correlation).
+            - float: r_max_real (strongest real correlation).
+            - float: r_max_null (strongest null correlation).
+    """
     if hasattr(Y, "values"):
         data = np.asarray(Y.values, dtype=float)
     else:
@@ -359,7 +410,21 @@ def estimate_alpha_interval(Y, B=500, random_state=0):
     return alpha_min, alpha_max, r_max_real, r_max_null
 
 def select_alpha(alpha_min: float, alpha_max: float, caution: float) -> float:
-    """Selects an alpha value between alpha_min and alpha_max based on caution."""
+    """
+    Selects an alpha value between alpha_min and alpha_max based on a caution level.
+    A caution of 0 selects alpha_min (aggressive), 1 selects alpha_max (conservative).
+
+    Args:
+        alpha_min (float): The minimum alpha value (most significant real correlation).
+        alpha_max (float): The maximum alpha value (most significant null correlation).
+        caution (float): A value between 0 and 1, indicating the level of caution.
+
+    Returns:
+        float: The selected alpha value.
+
+    Raises:
+        ValueError: If caution is not between 0 and 1.
+    """
     if not (0 <= caution <= 1):
         raise ValueError("Caution must be between 0 and 1.")
     return alpha_min * (1 - caution) + alpha_max * caution
@@ -373,7 +438,17 @@ class AlphaRegime(IntEnum):
 
 
 def diagnose_alpha_regime(alpha_min: float, alpha_max: float):
-    """Diagnosis of the statistical regime + metrics."""
+    """
+    Diagnoses the statistical regime based on alpha_min and alpha_max,
+    and calculates related metrics like S and S_norm.
+
+    Args:
+        alpha_min (float): The minimum alpha value.
+        alpha_max (float): The maximum alpha value.
+
+    Returns:
+        dict: A dictionary containing the regime, alpha values, S, and S_norm.
+    """
     if alpha_min > alpha_max:
         regime = AlphaRegime.SIGNAL_BELOW_NOISE
         try:
@@ -408,7 +483,16 @@ def diagnose_alpha_regime(alpha_min: float, alpha_max: float):
 
 
 def describe_alpha_regime(metrics: dict) -> str:
-    """Generates a human-readable text report of the regime."""
+    """
+    Generates a human-readable text report describing the diagnosed alpha regime.
+
+    Args:
+        metrics (dict): A dictionary containing regime diagnosis metrics
+                        (output of `diagnose_alpha_regime`).
+
+    Returns:
+        str: A formatted string report of the statistical regime.
+    """
     regime = AlphaRegime(int(metrics["regime"]))
     alpha_min = float(metrics["alpha_min"])
     alpha_max = float(metrics["alpha_max"])
@@ -477,10 +561,21 @@ def describe_alpha_regime(metrics: dict) -> str:
 # Core ISDA
 
 def find_maximal_independent_sets(adjacency):
-    """Finds ALL MIS (Maximal Independent Sets)."""
+    """
+    Finds all Maximal Independent Sets (MIS) of a given graph represented by its adjacency matrix.
+    Uses the Bron-Kerbosch algorithm.
+
+    Args:
+        adjacency (np.ndarray): The adjacency matrix of the graph.
+
+    Returns:
+        list: A list of lists, where each inner list represents an MIS (node indices).
+    """
     adjacency = np.asarray(adjacency)
     M = adjacency.shape[0]
 
+    # The Bron-Kerbosch algorithm typically works on the complement graph for MIS.
+    # An independent set in G is a clique in G_complement.
     comp_adj = np.ones_like(adjacency, dtype=int)
     np.fill_diagonal(comp_adj, 0)
     comp_adj[adjacency == 1] = 0
@@ -488,15 +583,27 @@ def find_maximal_independent_sets(adjacency):
     mis_list = []
 
     def neighbors_in_comp(v):
+        """Returns neighbors of node v in the complement graph."""
         return {u for u in range(M) if comp_adj[v, u] == 1}
 
     def bron_kerbosch(R, P, X):
+        """Recursive Bron-Kerbosch algorithm to find maximal cliques."""
         if not P and not X:
-            mis_list.append(sorted(R))
+            mis_list.append(sorted(list(R)))
             return
-        for v in list(P):
+        # Pivot selection: choose u in P union X with most neighbors in P
+        u = None
+        max_neighbors = -1
+        for v_cand in P.union(X):
+            num_neighbors = len(P.intersection(neighbors_in_comp(v_cand)))
+            if num_neighbors > max_neighbors:
+                max_neighbors = num_neighbors
+                u = v_cand
+
+        # Iterate over P \ N(u)
+        for v in list(P.difference(neighbors_in_comp(u))):
             N_v = neighbors_in_comp(v)
-            bron_kerbosch(R | {v}, P & N_v, X & N_v)
+            bron_kerbosch(R.union({v}), P.intersection(N_v), X.intersection(N_v))
             P.remove(v)
             X.add(v)
 
@@ -505,6 +612,17 @@ def find_maximal_independent_sets(adjacency):
 
 
 def compute_mis_metrics(mis_list, adjacency, labels):
+    """
+    Computes various metrics for each Maximal Independent Set (MIS).
+
+    Args:
+        mis_list (list): A list of MIS, where each MIS is a list of node indices.
+        adjacency (np.ndarray): The adjacency matrix of the graph.
+        labels (list): A list of labels for the nodes.
+
+    Returns:
+        list: A list of dictionaries, each containing metrics for an MIS.
+    """
     A = np.array(adjacency, dtype=int)
     n = A.shape[0]
     results = []
@@ -545,6 +663,17 @@ def compute_mis_metrics(mis_list, adjacency, labels):
 
 
 def sort_mis_metrics(mis_metrics):
+    """
+    Sorts a list of MIS metrics dictionaries based on a predefined ranking criteria.
+    The primary sorting keys are: size (desc), neighborhood (desc), avg_external_degree (desc),
+    span (desc), and mis_labels (asc) for tie-breaking.
+
+    Args:
+        mis_metrics (list): A list of dictionaries, each containing metrics for an MIS.
+
+    Returns:
+        list: The sorted list of MIS metrics dictionaries.
+    """
     return sorted(
         mis_metrics,
         key=lambda x: (
@@ -557,7 +686,19 @@ def sort_mis_metrics(mis_metrics):
     )
 
 def report_significant_correlations(R, z_stat, z_crit, max_pairs=50, label_prefix="f"):
-    """Returns a string report of significant correlations."""
+    """
+    Generates a string report of significant correlations found in the data.
+
+    Args:
+        R (np.ndarray): The correlation matrix.
+        z_stat (np.ndarray): The Fisher z-transformed correlation statistics.
+        z_crit (float): The critical z-value for significance.
+        max_pairs (int): Maximum number of significant pairs to report for each type (positive/negative).
+        label_prefix (str): Prefix for feature labels (e.g., "f" for f1, f2).
+
+    Returns:
+        str: A formatted string report of significant correlations.
+    """
     M = R.shape[0]
     pos_corr = []
     neg_corr = []
@@ -597,11 +738,20 @@ def report_significant_correlations(R, z_stat, z_crit, max_pairs=50, label_prefi
 
 def calculate_component_compactness(corr_matrix, components):
     """
-    Calculates component homogeneity metrics (Compactness and Ratio).
+    Calculates component homogeneity metrics (Compactness and Ratio) for each connected component.
+    Compactness is the minimum absolute correlation within a component.
+    Ratio is min_corr / max_corr within a component.
+
+    Args:
+        corr_matrix (np.ndarray): The full correlation matrix.
+        components (list): A list of lists, where each inner list represents the
+                           indices of nodes in a connected component.
+
     Returns:
-        min_compactness: Lowest internal correlation across all components (worst case).
-        component_metrics: Dict mapping idx -> compactness.
-        homogeneity_stats: Dict with 'min_ratio', 'worst_comp_idx', 'ratios' (dict).
+        tuple: A tuple containing:
+            - float: The lowest internal correlation (min_compactness) across all components.
+            - dict: A dictionary mapping component index to its compactness (min internal correlation).
+            - dict: A dictionary with 'min_ratio', 'worst_comp_idx', and 'ratios' (dict of comp_idx to ratio).
     """
     metrics = {}
     ratios = {}
@@ -655,12 +805,12 @@ def repair_mis_coverage(corr_matrix, mis_indices, min_coverage=0.7):
     member of the MIS with correlation > min_coverage.
     
     Args:
-        corr_matrix: MxM correlation matrix (numpy array)
-        mis_indices: List of indices currently in the MIS
-        min_coverage: Minimum absolute correlation required to consider a variable 'covered' (default 0.7)
+        corr_matrix (np.ndarray): MxM correlation matrix.
+        mis_indices (list): List of indices currently in the MIS.
+        min_coverage (float): Minimum absolute correlation required to consider a variable 'covered'.
         
     Returns:
-        List of indices in the repaired (expanded) MIS.
+        list: List of indices in the repaired (expanded) MIS.
     """
     M = corr_matrix.shape[0]
     current_mis = list(mis_indices)
@@ -708,13 +858,44 @@ def repair_mis_coverage(corr_matrix, mis_indices, min_coverage=0.7):
 
 def misda_significance(Y, alpha=0.05, ensure_coverage=True, min_coverage=None):
     """
-    Executes ISDA logic. Returns dictionary of results.
-    
+    Executes the Maximal Independent Structural Dimensionality Analysis (MISDA) logic.
+    It constructs a dependency graph based on significant correlations, finds Maximal
+    Independent Sets (MIS), and computes various metrics for them.
+
     Args:
-        Y: Input data (DataFrame or numpy array)
-        alpha: Significance level for graph construction
-        ensure_coverage: If True, repairs MIS to guarantee min_coverage (default True)
-        min_coverage: Minimum fidelity correlation threshold (default None = derived from alpha)
+        Y (pd.DataFrame or np.ndarray): Input data, where rows are samples and columns are features.
+        alpha (float): Significance level for determining significant correlations (e.g., 0.05).
+        ensure_coverage (bool): If True, the MIS will be expanded to ensure all original
+                                variables are 'covered' by at least one MIS member.
+        min_coverage (float, optional): Minimum absolute correlation required for a variable
+                                        to be considered 'covered' by an MIS member.
+                                        If None, it's derived from the `alpha` parameter.
+
+    Returns:
+        dict: A dictionary containing the results of the MISDA analysis, including:
+            - 'corr': The full correlation matrix.
+            - 'adjacency': The adjacency matrix of the dependency graph.
+            - 'components': List of connected components (node indices).
+            - 'components_labels': List of connected components (node labels).
+            - 'mis_sets': All found Maximal Independent Sets (node indices).
+            - 'mis_sets_labels': All found Maximal Independent Sets (node labels).
+            - 'mis_metrics': Detailed metrics for each MIS.
+            - 'mis_sorted': MIS metrics sorted by ranking criteria.
+            - 'mis_ranked': MIS metrics with assigned ranks.
+            - 'rank_groups': MIS grouped by rank.
+            - 'best_mis_rank1': The top-ranked MIS.
+            - 'best_mis_rank2': The second-ranked MIS (if available).
+            - 'unique_metric_values': Unique values for various MIS metrics.
+            - 'min_component_compactness': The minimum compactness across all components.
+            - 'component_compactness': Compactness for each component.
+            - 'homogeneity_stats': Statistics related to component homogeneity.
+            - 'labels': List of feature labels.
+            - 'alpha': The significance level used.
+            - 'N': Number of samples.
+            - 'M': Number of features.
+            - 'sigma_z': Standard error of Fisher's z-transform.
+            - 'z_crit': Critical z-value for the given alpha.
+            - 'corr_report': A string report of significant correlations.
     """
     # Accepts DataFrame or array
     if isinstance(Y, pd.DataFrame):

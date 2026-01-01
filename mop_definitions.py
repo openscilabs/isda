@@ -2,6 +2,14 @@
 import numpy as np
 import pandas as pd
 
+"""
+mop_definitions.py - Synthetic Multi-Objective Problem Generators
+
+This module defines test cases (MOP-A to MOP-F) for verifying the MISDA algorithm.
+Each generator produces a synthetic dataset (N samples x M objectives) with
+known ground truth regarding intrinsic dimensionality and redundancy structure.
+"""
+
 def _mop_truth(name, intrinsic_dim_expected, blocks_expected, notes=""):
     return {
         "name": name,
@@ -27,6 +35,14 @@ def _repeat_with_small_noise(base, rng, noise):
 # Expected: dim=1; single block of 20
 # ------------------------------------------------------------
 def mopA_monotonic_redundancy(N=1000, seed=123, noise=0.0):
+    """
+    MOP-A: Monotonic Redundancy (M=20).
+    
+    Generates 20 objectives that are all monotonic transformations of a single latent variable.
+    Tests the algorithm's ability to detect non-linear (but monotonic) redundancy.
+    
+    Expected Intrinsic Dimension: 1
+    """
     rng = np.random.default_rng(seed)
     x = rng.uniform(0.0, 1.0, size=N)
 
@@ -65,6 +81,14 @@ def mopA_monotonic_redundancy(N=1000, seed=123, noise=0.0):
 
 
 def mopB_tradeoff_with_redundancies(N=1000, seed=123, noise=0.02):
+    """
+    MOP-B: Trade-off with Redundancies (M=20).
+    
+    Simulates a 3-objective problem (Cost, Consumption, Performance) where Performance
+    depends on the others, creating a 2D manifold. Objectives are expanded with redundancies.
+    
+    Expected Intrinsic Dimension: 2
+    """
     rng = np.random.default_rng(seed)
     a = rng.uniform(0.0, 1.0, size=N)
     b = rng.uniform(0.0, 1.0, size=N)
@@ -130,6 +154,14 @@ def mopB_tradeoff_with_redundancies(N=1000, seed=123, noise=0.02):
 # Here: 4 blocks of 5 (total 20). Expected: dim=4.
 # ------------------------------------------------------------
 def mopC_latent_blocks_4x5(N=1000, seed=123, noise=0.02):
+    """
+    MOP-C: Latent Blocks (4x5, M=20).
+    
+    Generates 4 independent latent factors. Each factor drives a block of 5
+    redundant objectives (some non-linear).
+    
+    Expected Intrinsic Dimension: 4
+    """
     rng = np.random.default_rng(seed)
     u, v, w, z = rng.uniform(0.0, 1.0, size=(4, N))
     eps = rng.normal(size=N)
@@ -158,6 +190,14 @@ def mopC_latent_blocks_4x5(N=1000, seed=123, noise=0.02):
 # Expected: conflict must be preserved; internal redundancy can be reduced.
 # ------------------------------------------------------------
 def mopD_pure_conflict_groups(N=1000, seed=123, noise=0.0):
+    """
+    MOP-D: Pure Conflict Groups (M=20).
+    
+    Two large groups of internally redundant objectives. The two groups are 
+    strongly anti-correlated (conflicting). Tests preservation of conflict.
+    
+    Expected Intrinsic Dimension: 2
+    """
     rng = np.random.default_rng(seed)
     x = rng.uniform(0.0, 1.0, size=N)
 
@@ -205,6 +245,14 @@ def mopD_pure_conflict_groups(N=1000, seed=123, noise=0.0):
 # Expected: dim≈2 (maintained).
 # ------------------------------------------------------------
 def mopE_partial_redundancy_noisy(N=1000, seed=123, noise=0.05):
+    """
+    MOP-E: Partial Redundancy + Noise (M=20).
+    
+    Mixture of redundant groups and compound objectives (sums/mixtures).
+    Includes significant noise to test robustness.
+    
+    Expected Intrinsic Dimension: 2
+    """
     rng = np.random.default_rng(seed)
     a = rng.uniform(0.0, 1.0, size=N)
     b = rng.uniform(0.0, 1.0, size=N)
@@ -261,6 +309,14 @@ def mopE_partial_redundancy_noisy(N=1000, seed=123, noise=0.05):
 # Expected: dim≈2 (maintained), but global correlation can be misleading.
 # ------------------------------------------------------------
 def mopF_regime_switching(N=1000, seed=123, sharpness=20.0, noise=0.0):
+    """
+    MOP-F: Regime Switching / Mixture (M=20).
+    
+    A variable L switches behavior between 'a' and 'b' depending on the value of 'a'.
+    Tests the algorithm's behavior on manifold mixtures/discontinuities.
+    
+    Expected Intrinsic Dimension: 2 (but may be detected as 1 due to collapse).
+    """
     rng = np.random.default_rng(seed)
     a = rng.uniform(0.0, 1.0, size=N)
     b = rng.uniform(0.0, 1.0, size=N)

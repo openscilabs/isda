@@ -7,6 +7,19 @@ import isda
 import mop_definitions
 
 def run_verification():
+    """
+    Runs a verification process for ISDA (Independent Set Discovery Algorithm)
+    against a suite of MOP (Method of Patterns) synthetic datasets (A-F).
+
+    For each MOP case, it performs the following steps:
+    1. Generates synthetic data using the MOP's defined characteristics.
+    2. Estimates the alpha interval for ISDA.
+    3. Selects a conservative alpha value for ISDA execution.
+    4. Runs ISDA to identify maximally independent sets (MIS).
+    5. Compares the size of the best MIS found by ISDA with the
+       expected intrinsic dimensionality provided by the MOP definition.
+    6. Reports the status (PASS/WARN/FAIL) for each case and compiles a summary.
+    """
     print("Running ISDA Validation on MOP Cases A-F...")
     print("-" * 60)
     

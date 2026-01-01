@@ -1,3 +1,4 @@
+```python
 # SPDX-FileCopyrightText: 2025 Monaco F. J. <monaco@usp.br>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -7,6 +8,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import misda
 import importlib
+
+"""
+This script contains functions to generate synthetic datasets for testing and
+demonstrating the MISDA library. Each function creates a DataFrame (Y) and
+a dictionary (truth) describing the expected intrinsic dimensionality and
+block structure.
+
+It also includes a main execution loop to run MISDA analysis on these
+generated cases and print a summary.
+"""
 
 # 1. Data Generators
 def _truth(name, intrinsic_dim_expected, blocks_expected, notes=""):
