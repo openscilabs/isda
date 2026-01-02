@@ -79,6 +79,50 @@ def _parse_node_to_1based(x, M):
     return None
 
 
+
+def calculate_spectral_entropy(Y):
+    """
+    Calculates the normalized spectral entropy of the correlation matrix of Y.
+    High entropy (~1.0) indicates complex, spherical, or random structure.
+    Low entropy (~0.0) indicates high redundancy/dimensionality reduction potential.
+    """
+    if hasattr(Y, "values"):
+        data = np.asarray(Y.values, dtype=float)
+    else:
+        data = np.asarray(Y, dtype=float)
+    
+    n, m = data.shape
+    if m < 2:
+        return 0.0
+        
+    # Correlation matrix
+    corr = np.corrcoef(data, rowvar=False)
+    # Eigenvalues (Hermitian/Symmetric)
+    eigvals = np.linalg.eigvalsh(corr)
+    
+    # Normalize eigenvalues to probability distribution
+    # Filter small negative/zeros due to precision
+    eigvals = eigvals[eigvals > 1e-9]
+    if len(eigvals) == 0:
+        return 0.0
+        
+    p = eigvals / np.sum(eigvals)
+    
+    # Entropy
+    se = -np.sum(p * np.log(p))
+    
+    # Normalize by log(M)
+    # Note: Max entropy for M variables is log(M) when all eigenvalues = 1
+    # However, number of non-zero eigenvalues could be < M if N < M.
+    # Usually we norm by log(min(N, M)) or log(len(eigvals)).
+    # Using log(len(eigvals)) is safer.
+    denom = np.log(len(eigvals))
+    if denom == 0:
+        return 0.0
+        
+    return se / denom
+
+
 def _extract_mis_nodes_1based(mis_entry, M):
     """
     Strict extractor (no random hunting):
@@ -591,6 +635,7 @@ def find_maximal_independent_sets(adjacency):
         if not P and not X:
             mis_list.append(sorted(list(R)))
             return
+        
         # Pivot selection: choose u in P union X with most neighbors in P
         u = None
         max_neighbors = -1
@@ -1503,6 +1548,13 @@ class MISDAResult:
         else:
             lines.append("Status: OK (Components are internally homogeneous)")
 
+        # Global Complexity Warning (Sphere Paradox)
+        if self.reduction_applied:
+            se_norm = calculate_spectral_entropy(self.Y)
+            if se_norm > 0.75:
+                # User-requested warning
+                lines.append("WARNING: High global complexity detected (SE={:.2f}) despite aggressive reduction. Suspected Latent Conflict (Sphere-like topology).".format(se_norm))
+
         # SES (Linear)
         if self.ses_results:
              lines.append("\n--- 5. Validation (SES - Linear) ---")
@@ -1541,7 +1593,7 @@ class MISDAResult:
             show_removed=False
         )
 
-def analyze(Y, caution=0.5, run_ses=True, name=None):
+def analyze(Y, caution=0.5, run_ses=True, name=None, ensure_coverage=True):
     """
     Executes the full MISDA pipeline on dataset Y.
     
@@ -1557,6 +1609,7 @@ def analyze(Y, caution=0.5, run_ses=True, name=None):
         caution (float): Conservatism level [0, 1]. 0 = Aggressive reduction, 1 = Very conservative.
         run_ses (bool): If True, calculates Structural Evidence Score for the best MIS.
         name (str): Optional name for the case, used in reports.
+        ensure_coverage (bool): If True, ensures result covers all input variables.
         
     Returns:
         MISDAResult: Object containing all analysis artifacts.
@@ -1571,7 +1624,8 @@ def analyze(Y, caution=0.5, run_ses=True, name=None):
     
     # 3. Execution
     # 3. Execution
-    res = misda_significance(Y, alpha=alpha_exec, ensure_coverage=True, min_coverage=None)
+    # 3. Execution
+    res = misda_significance(Y, alpha=alpha_exec, ensure_coverage=ensure_coverage, min_coverage=None)
     
     # 4. Validation (SES)
     ses_out = None
